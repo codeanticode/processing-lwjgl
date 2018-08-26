@@ -1,0 +1,9 @@
+name = OpenGL
+
+application.macosx=core.jar,lwjgl.jar,lwjgl-natives-macos.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-macos.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-macos.jar
+application.windows32=core.jar,lwjgl.jar,lwjgl-natives-windows.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-windows.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-windows.jar
+application.windows64=core.jar,lwjgl.jar,lwjgl-natives-windows.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-windows.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-windows.jar
+application.linux32=core.jar,lwjgl.jar,lwjgl-natives-linux.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-linux.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-linux.jar
+application.linux64=core.jar,lwjgl.jar,lwjgl-natives-linux.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-linux.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-linux.jar
+application.linux-armv6hf=core.jar,lwjgl.jar,lwjgl-natives-linux.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-linux.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-linux.jar
+application.linux-arm64=core.jar,lwjgl.jar,lwjgl-natives-linux.jar,lwjgl-opengl.jar,lwjgl-opengl-natives-linux.jar,lwjgl-glfw.jar,lwjgl-glfw-natives-linux.jar
