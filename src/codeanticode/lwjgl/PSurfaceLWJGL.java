@@ -169,30 +169,6 @@ public class PSurfaceLWJGL implements PSurface {
     fbHeight = sketchHeight;
   }
   
-  
-  /*
-  @Override
-  public Canvas initComponent(PApplet sketch) {
-    this.sketch = sketch;
-
-    sketchWidth = sketch.sketchWidth();
-    sketchHeight = sketch.sketchHeight();
-
-    Canvas canvas = new Canvas();
-    canvas.setFocusable(true);
-    canvas.requestFocus();
-    canvas.setBounds(0, 0, sketchWidth, sketchHeight);
-    try {
-      Display.setParent(canvas);
-      return canvas;
-    } catch (LWJGLException e) {
-      e.printStackTrace();
-    }
-    return null;
-  }
-  */
-
-
   @Override
   public void initFrame(PApplet sketch) {
 //    , int backgroundColor,
@@ -203,23 +179,6 @@ public class PSurfaceLWJGL implements PSurface {
     sketchHeight = sketch.sketchHeight();
     fbWidth = sketchWidth;
     fbHeight = sketchHeight;
-
-    // Setup an error callback. The default implementation
-    // will print the error message in System.err.
-//    glfwSetErrorCallback(errorCallback = errorCallbackPrint(System.err));
-    GLFWErrorCallback.createPrint(System.err).set();
-
-    // Initialize GLFW. Most GLFW functions will not work before doing this.
-    if (!glfwInit())
-      throw new IllegalStateException("Unable to initialize GLFW");
-
-    // Configure our window
-    // https://www.lwjgl.org/guide
-    glfwDefaultWindowHints(); // optional, the current window hints are already
-                              // the default
-    glfwWindowHint(GLFW_VISIBLE, GL_FALSE); // the window will stay hidden after
-                                            // creation
-    glfwWindowHint(GLFW_RESIZABLE, GL_TRUE); // the window will be resizable
   }
 
 
@@ -257,6 +216,11 @@ public class PSurfaceLWJGL implements PSurface {
 
   @Override
   public void setResizable(boolean resizable) {
+    if (resizable) {
+      glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    } else {
+      glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    }
   }
 
 
@@ -331,305 +295,10 @@ public class PSurfaceLWJGL implements PSurface {
 
   @Override
   public void startThread() {
-
-    int WIDTH = sketchWidth;
-    int HEIGHT = sketchHeight;
-    fbWidth = sketchWidth;
-    fbHeight = sketchHeight;
     
-    // Setup an error callback. The default implementation
-    // will print the error message in System.err.
-    GLFWErrorCallback.createPrint(System.err).set();
-
-    // Initialize GLFW. Most GLFW functions will not work before doing this.
-    if ( !glfwInit() )
-      throw new IllegalStateException("Unable to initialize GLFW");
-
-    // Configure GLFW
-    glfwDefaultWindowHints(); // optional, the current window hints are already the default
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
-
-    // Create the window
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Hello World!", NULL, NULL);
-    if ( window == NULL )
-      throw new RuntimeException("Failed to create the GLFW window");
-
-    // Setup a key callback. It will be called every time a key is pressed, repeated or released.
-    glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
-      if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE )
-        glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
-    });
-
-    // Get the thread stack and push a new frame
-    try ( MemoryStack stack = stackPush() ) {
-      IntBuffer pWidth = stack.mallocInt(1); // int*
-      IntBuffer pHeight = stack.mallocInt(1); // int*
-
-      // Get the window size passed to glfwCreateWindow
-      glfwGetWindowSize(window, pWidth, pHeight);
-
-      // Get the resolution of the primary monitor
-      GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-
-      // Center the window
-      glfwSetWindowPos(
-        window,
-        (vidmode.width() - pWidth.get(0)) / 2,
-        (vidmode.height() - pHeight.get(0)) / 2
-      );
-    } // the stack frame is popped automatically
-
-    // Make the OpenGL context current
-    glfwMakeContextCurrent(window);
-    // Enable v-sync
-    glfwSwapInterval(1);
-
-    // Make the window visible
-    glfwShowWindow(window);
-
-    GL.createCapabilities();
-
-    // Set the clear color
-    glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
-
-    // Event handling in LWJGL3:
-    // https://github.com/LWJGL/lwjgl3-wiki/wiki/2.6.3-Input-handling-with-GLFW
-
-    glfwSetKeyCallback(window, keyCallback = new GLFWKeyCallback() {
-      @Override
-      public void invoke(long window, int key, int scancode, int action,
-          int mods) {
-        System.out.println("Key pressed: " + key + ", " + scancode + " " + action);
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
-          glfwSetWindowShouldClose(window, true); // We will detect this in
-                                                     // our rendering loop
-      }
-    });
-
-    glfwSetMouseButtonCallback(window, mouseCallback = new GLFWMouseButtonCallback() {
-      @Override
-      public void invoke(long window, int button, int action, int mods) {
-        System.out.println("mouse pressed: " + button + ", " + action + " " + mods);
-      }
-    });
-
-    glfwSetCursorPosCallback(window, posCallback = new GLFWCursorPosCallback() {
-      @Override
-      public void invoke(long window, double xpos, double ypos) {
-        System.out.println("mouse moved: " + xpos + " " + ypos);
-
-
-        long millis = System.currentTimeMillis();
-
-        int modifiers = 0;
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
-//          modifiers |= Event.SHIFT;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RCONTROL)) {
-//          modifiers |= Event.CTRL;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LMETA) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RMETA)) {
-//          modifiers |= Event.META;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LMENU) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RMENU)) {
-//          // LWJGL maps the menu key and the alt key to the same value.
-//          modifiers |= Event.ALT;
-//        }
-
-        int x = (int)xpos;
-        int y = (int)ypos;
-        int button = 0;
-
-        int action = 0;
-        action = MouseEvent.MOVE;
-//
-        int count = 0;
-
-        MouseEvent me = new MouseEvent(null, millis, action, modifiers,
-                                       x, y, button, count);
-        sketch.postEvent(me);
-
-
-      }
-    });
-
-    glfwSetScrollCallback(window, scrollCallback = new GLFWScrollCallback() {
-      @Override
-      public void invoke(long window, double xoffset, double yoffset) {
-        System.out.println("mouse scrolled: " + xoffset + " " + yoffset);
-      }
-    });
-
-    
-    /*
-     * We need to get notified when the GLFW window framebuffer size changed (i.e.
-     * by resizing the window), in order to recreate our own ray tracer framebuffer
-     * texture.
-     */
-    glfwSetFramebufferSizeCallback(window, fbCallback = new GLFWFramebufferSizeCallback() {
-      public void invoke(long window, int width, int height) {
-        System.out.println(width + "x" + height);
-        fbWidth = width;
-        fbHeight = height;        
-//        if (width > 0 && height > 0 && (Tutorial1.this.width != width || Tutorial1.this.height != height)) {
-//          Tutorial1.this.width = width;
-//          Tutorial1.this.height = height;
-//          Tutorial1.this.resetFramebuffer = true;
-//        }
-      }
-    });    
-    
-    /*
-     * Account for HiDPI screens where window size != framebuffer pixel size.
-     */
-    try (MemoryStack frame = MemoryStack.stackPush()) {
-      IntBuffer framebufferSize = frame.mallocInt(2);
-      nglfwGetFramebufferSize(window, MemoryUtil.memAddress(framebufferSize), MemoryUtil.memAddress(framebufferSize) + 4);
-      fbWidth = framebufferSize.get(0);
-      fbHeight = framebufferSize.get(1);
-    }
-    
-
-    // Run the rendering loop until the user has attempted to close
-    // the window or has pressed the ESCAPE key.
-    // Cannot put this inside a thread
-    while ( !glfwWindowShouldClose(window) ) {
-//      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
-      pgl.setThread(Thread.currentThread());
-      sketch.handleDraw();
-
-      glfwSwapBuffers(window); // swap the color buffers
-
-      // Poll for window events. The key callback above will only be
-      // invoked during this call.
-      glfwPollEvents();
-    }
-
-/*
-    // Create the window
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Hello World!", NULL, NULL);
-    if (window == NULL)
-      throw new RuntimeException("Failed to create the GLFW window");
-
-
-    // Event handling in LWJGL3:
-    // https://github.com/LWJGL/lwjgl3-wiki/wiki/2.6.3-Input-handling-with-GLFW
-
-    glfwSetKeyCallback(window, keyCallback = new GLFWKeyCallback() {
-      @Override
-      public void invoke(long window, int key, int scancode, int action,
-          int mods) {
-        System.out.println("Key pressed: " + key + ", " + scancode + " " + action);
-        if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
-          glfwSetWindowShouldClose(window, true); // We will detect this in
-                                                     // our rendering loop
-      }
-    });
-
-    glfwSetMouseButtonCallback(window, mouseCallback = new GLFWMouseButtonCallback() {
-      @Override
-      public void invoke(long window, int button, int action, int mods) {
-        System.out.println("mouse pressed: " + button + ", " + action + " " + mods);
-      }
-    });
-
-    glfwSetCursorPosCallback(window, posCallback = new GLFWCursorPosCallback() {
-      @Override
-      public void invoke(long window, double xpos, double ypos) {
-        System.out.println("mouse moved: " + xpos + " " + ypos);
-
-
-        long millis = System.currentTimeMillis();
-
-        int modifiers = 0;
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
-//          modifiers |= Event.SHIFT;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RCONTROL)) {
-//          modifiers |= Event.CTRL;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LMETA) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RMETA)) {
-//          modifiers |= Event.META;
-//        }
-//        if (Keyboard.isKeyDown(Keyboard.KEY_LMENU) ||
-//            Keyboard.isKeyDown(Keyboard.KEY_RMENU)) {
-//          // LWJGL maps the menu key and the alt key to the same value.
-//          modifiers |= Event.ALT;
-//        }
-
-        int x = (int)xpos;
-        int y = (int)ypos;
-        int button = 0;
-
-        int action = 0;
-        action = MouseEvent.MOVE;
-//
-        int count = 0;
-
-        MouseEvent me = new MouseEvent(null, millis, action, modifiers,
-                                       x, y, button, count);
-        sketch.postEvent(me);
-
-
-      }
-    });
-
-    glfwSetScrollCallback(window, scrollCallback = new GLFWScrollCallback() {
-      @Override
-      public void invoke(long window, double xoffset, double yoffset) {
-        System.out.println("mouse scrolled: " + xoffset + " " + yoffset);
-      }
-    });
-
-
-
-    // Get the resolution of the primary monitor
-    long mon = glfwGetPrimaryMonitor();
-    GLFWVidMode vidmode = glfwGetVideoMode(mon);
-    // Center our window
-    glfwSetWindowPos(window, (vidmode.width() - WIDTH) / 2,
-                             (vidmode.height() - HEIGHT) / 2);
-
-    // Make the OpenGL context current
-    glfwMakeContextCurrent(window);
-    // Enable v-sync
-    glfwSwapInterval(1);
-
-    // Make the window visible
-    glfwShowWindow(window);
-
-
-//    GLContext.createFromCurrent();
-
-    // Set the clear color
-    glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
-
-    // Run the rendering loop until the user has attempted to close
-    // the window or has pressed the ESCAPE key.
-    while (!glfwWindowShouldClose(window)) {
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the
-                                                          // framebuffer
-
-      pgl.setThread(thread);
-      checkPause();
-      sketch.handleDraw();
-
-      glfwSwapBuffers(window); // swap the color buffers
-
-      // Poll for window events. The key callback above will only be
-      // invoked during this call.
-      glfwPollEvents();
-    }
-*/
-
+    // Put LWJGL's init and loop temporarily here:
+    init();    
+    loop();
 
     /*
     if (thread == null) {
@@ -641,6 +310,202 @@ public class PSurfaceLWJGL implements PSurface {
     */
   }
 
+  protected void init() {
+    int WIDTH = sketchWidth;
+    int HEIGHT = sketchHeight;
+    fbWidth = sketchWidth;
+    fbHeight = sketchHeight;
+    
+    // Setup an error callback. The default implementation
+    // will print the error message in System.err.
+    GLFWErrorCallback.createPrint(System.err).set();
+
+    // Initialize GLFW. Most GLFW functions will not work before doing this.
+    if (!glfwInit()) {
+      throw new IllegalStateException("Unable to initialize GLFW");
+    }
+
+    // Configure GLFW
+    glfwDefaultWindowHints(); // optional, the current window hints are already the default
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // the window will not be resizable
+
+    // Create the window
+    window = glfwCreateWindow(WIDTH, HEIGHT, "Hello World!", NULL, NULL);    
+    if (window == NULL) {
+      throw new RuntimeException("Failed to create the GLFW window");
+    }
+
+    
+
+    // Event handling in LWJGL3:
+    // https://github.com/LWJGL/lwjgl3-wiki/wiki/2.6.3-Input-handling-with-GLFW
+    registerKeyEvents();
+    registerMouseEvents();
+    
+    registerFBEvents();
+
+    // Place window initially, should use placeWindow()  
+    // Get the thread stack and push a new frame
+    try (MemoryStack stack = stackPush()) {
+      IntBuffer pWidth = stack.mallocInt(1); // int*
+      IntBuffer pHeight = stack.mallocInt(1); // int*
+
+      // Get the window size passed to glfwCreateWindow
+      glfwGetWindowSize(window, pWidth, pHeight);
+
+      // Get the resolution of the primary monitor
+      GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+      int px = (vidmode.width() - pWidth.get(0)) / 2;
+      int py = (vidmode.height() - pHeight.get(0)) / 2;
+      
+      // Center the window
+      glfwSetWindowPos(window, px, py);
+    } // the stack frame is popped automatically    
+    
+    // Make the OpenGL context current
+    glfwMakeContextCurrent(window);
+    // Enable v-sync
+    glfwSwapInterval(1);
+
+    // Make the window visible
+    glfwShowWindow(window);    
+    
+    GL.createCapabilities();
+  }
+ 
+  protected void registerKeyEvents() {
+    // Setup a key callback. It will be called every time a key is pressed, repeated or released.
+//    glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
+//      if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE )
+//        glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
+//    });
+
+    
+    glfwSetKeyCallback(window, keyCallback = new GLFWKeyCallback() {
+      @Override
+      public void invoke(long window, int key, int scancode, int action,
+          int mods) {
+        System.out.println("Key pressed: " + key + ", " + scancode + " " + action);
+        if (action != GLFW_RELEASE) return;
+        if (key == GLFW_KEY_ESCAPE) {
+          glfwSetWindowShouldClose(window, true);
+        }
+      }
+    });    
+  }
+  
+  protected void registerMouseEvents() {
+    glfwSetMouseButtonCallback(window, mouseCallback = new GLFWMouseButtonCallback() {
+      @Override
+      public void invoke(long window, int button, int action, int mods) {
+        System.out.println("mouse pressed: " + button + ", " + action + " " + mods);
+      }
+    });
+
+    
+//    glfwSetCursorPosCallback(window, (window, x, y) -> {
+//      System.out.println("cursor moved " + x + ", " + y);      
+//    }); 
+    
+  
+    glfwSetCursorPosCallback(window, posCallback = new GLFWCursorPosCallback() {
+      @Override
+      public void invoke(long window, double xpos, double ypos) {
+        System.out.println("mouse moved: " + xpos + " " + ypos);
+
+
+        long millis = System.currentTimeMillis();
+
+        int modifiers = 0;
+//        if (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ||
+//            Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
+//          modifiers |= Event.SHIFT;
+//        }
+//        if (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) ||
+//            Keyboard.isKeyDown(Keyboard.KEY_RCONTROL)) {
+//          modifiers |= Event.CTRL;
+//        }
+//        if (Keyboard.isKeyDown(Keyboard.KEY_LMETA) ||
+//            Keyboard.isKeyDown(Keyboard.KEY_RMETA)) {
+//          modifiers |= Event.META;
+//        }
+//        if (Keyboard.isKeyDown(Keyboard.KEY_LMENU) ||
+//            Keyboard.isKeyDown(Keyboard.KEY_RMENU)) {
+//          // LWJGL maps the menu key and the alt key to the same value.
+//          modifiers |= Event.ALT;
+//        }
+
+        int x = (int)xpos;
+        int y = (int)ypos;
+        int button = 0;
+
+        int action = 0;
+        action = MouseEvent.MOVE;
+//
+        int count = 0;
+
+        MouseEvent me = new MouseEvent(null, millis, action, modifiers,
+                                       x, y, button, count);
+        sketch.postEvent(me);
+      }
+    });
+
+    glfwSetScrollCallback(window, scrollCallback = new GLFWScrollCallback() {
+      @Override
+      public void invoke(long window, double xoffset, double yoffset) {
+        System.out.println("mouse scrolled: " + xoffset + " " + yoffset);
+      }
+    });
+
+  }
+  
+  protected void registerFBEvents() {
+    /*
+     * We need to get notified when the GLFW window framebuffer size changed (i.e.
+     * by resizing the window), in order to recreate our own ray tracer framebuffer
+     * texture.
+     */
+    glfwSetFramebufferSizeCallback(window, fbCallback = new GLFWFramebufferSizeCallback() {
+      public void invoke(long window, int width, int height) {
+        System.out.println(width + "x" + height);
+        fbWidth = width;
+        fbHeight = height;        
+      }
+    });    
+    
+    /*
+     * Account for HiDPI screens where window size != framebuffer pixel size.
+     */
+    try (MemoryStack frame = MemoryStack.stackPush()) {
+      IntBuffer framebufferSize = frame.mallocInt(2);
+      nglfwGetFramebufferSize(window, MemoryUtil.memAddress(framebufferSize), MemoryUtil.memAddress(framebufferSize) + 4);
+      fbWidth = framebufferSize.get(0);
+      fbHeight = framebufferSize.get(1);
+    }    
+  }
+  
+  protected void loop() {
+
+    // Run the rendering loop until the user has attempted to close
+    // the window or has pressed the ESCAPE key.
+    // Cannot put this inside a thread
+    while ( !glfwWindowShouldClose(window) ) {
+//      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+      pgl.setThread(Thread.currentThread());
+      
+      sketch.handleDraw();
+
+      glfwSwapBuffers(window); // swap the color buffers
+
+      // Poll for window events. The key callback above will only be
+      // invoked during this call.
+      glfwPollEvents();
+    }
+      
+  }
+  
 
   @Override
   public void pauseThread() {
@@ -836,7 +701,7 @@ public class PSurfaceLWJGL implements PSurface {
     @Override
     public void run() {  // not good to make this synchronized, locks things up
 
-
+/*
       int WIDTH = sketchWidth;
       int HEIGHT = sketchHeight;
 
@@ -848,8 +713,7 @@ public class PSurfaceLWJGL implements PSurface {
         throw new RuntimeException("Failed to create the GLFW window");
 
 
-      // Event handling in LWJGL3:
-      // https://github.com/LWJGL/lwjgl3-wiki/wiki/2.6.3-Input-handling-with-GLFW
+
 
       glfwSetKeyCallback(window, keyCallback = new GLFWKeyCallback() {
         @Override
@@ -1008,7 +872,7 @@ public class PSurfaceLWJGL implements PSurface {
         // invoked during this call.
         glfwPollEvents();
       }
-
+*/
 
 
     }
