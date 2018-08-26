@@ -38,10 +38,20 @@ public class PGraphicsLWJGL extends PGraphicsOpenGL {
 
   @Override
   public PSurface createSurface() {  // ignore
-    return new PSurfaceLWJGL(this);
+    return surface = new PSurfaceLWJGL(this);
   }
   
   protected PGL createPGL(PGraphicsOpenGL pg) {
     return new PLWJGL(pg);
+  }  
+  
+  protected void setViewport() {
+    viewport.put(0, 0); 
+    viewport.put(1, 0);
+    viewport.put(2, ((PSurfaceLWJGL)surface).fbWidth); 
+    viewport.put(3, ((PSurfaceLWJGL)surface).fbHeight);
+//    System.out.println("Viewport " + ((PSurfaceLWJGL)surface).fbWidth + "x" + ((PSurfaceLWJGL)surface).fbHeight);
+    pgl.viewport(viewport.get(0), viewport.get(1),
+                 viewport.get(2), viewport.get(3));
   }  
 }

@@ -56,6 +56,7 @@ import org.lwjgl.BufferUtils;
 
 import org.lwjgl.glfw.GLFWCursorPosCallback;
 import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
 import org.lwjgl.glfw.GLFWScrollCallback;
@@ -65,6 +66,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 //import org.lwjgl.opengl.GLContext;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 
 import processing.core.PApplet;
 import processing.core.PConstants;
@@ -82,8 +84,11 @@ public class PSurfaceLWJGL implements PSurface {
   PApplet sketch;
   PGraphics graphics;
 
-  int sketchWidth;
-  int sketchHeight;
+  public int sketchWidth;
+  public int sketchHeight;
+  public int fbWidth;
+  public int fbHeight;
+  
 
   Frame frame;
   // Note that x and y may not be zero, depending on the display configuration
@@ -95,6 +100,7 @@ public class PSurfaceLWJGL implements PSurface {
   private GLFWCursorPosCallback posCallback;
   private GLFWKeyCallback keyCallback;
   private GLFWScrollCallback scrollCallback;
+  private GLFWFramebufferSizeCallback fbCallback;
   private GLFWErrorCallback errorCallback;
   //The window handle
   private long window;
@@ -159,6 +165,8 @@ public class PSurfaceLWJGL implements PSurface {
     sketchWidth = sketch.sketchWidth();
     sketchHeight = sketch.sketchHeight();
     
+    fbWidth = sketchWidth;
+    fbHeight = sketchHeight;
   }
   
   
@@ -187,14 +195,14 @@ public class PSurfaceLWJGL implements PSurface {
 
   @Override
   public void initFrame(PApplet sketch) {
-
 //    , int backgroundColor,
 //    int deviceIndex, boolean fullScreen, boolean spanDisplays
 
     this.sketch = sketch;
     sketchWidth = sketch.sketchWidth();
     sketchHeight = sketch.sketchHeight();
-
+    fbWidth = sketchWidth;
+    fbHeight = sketchHeight;
 
     // Setup an error callback. The default implementation
     // will print the error message in System.err.
@@ -326,7 +334,9 @@ public class PSurfaceLWJGL implements PSurface {
 
     int WIDTH = sketchWidth;
     int HEIGHT = sketchHeight;
-
+    fbWidth = sketchWidth;
+    fbHeight = sketchHeight;
+    
     // Setup an error callback. The default implementation
     // will print the error message in System.err.
     GLFWErrorCallback.createPrint(System.err).set();
@@ -455,6 +465,35 @@ public class PSurfaceLWJGL implements PSurface {
       }
     });
 
+    
+    /*
+     * We need to get notified when the GLFW window framebuffer size changed (i.e.
+     * by resizing the window), in order to recreate our own ray tracer framebuffer
+     * texture.
+     */
+    glfwSetFramebufferSizeCallback(window, fbCallback = new GLFWFramebufferSizeCallback() {
+      public void invoke(long window, int width, int height) {
+        System.out.println(width + "x" + height);
+        fbWidth = width;
+        fbHeight = height;        
+//        if (width > 0 && height > 0 && (Tutorial1.this.width != width || Tutorial1.this.height != height)) {
+//          Tutorial1.this.width = width;
+//          Tutorial1.this.height = height;
+//          Tutorial1.this.resetFramebuffer = true;
+//        }
+      }
+    });    
+    
+    /*
+     * Account for HiDPI screens where window size != framebuffer pixel size.
+     */
+    try (MemoryStack frame = MemoryStack.stackPush()) {
+      IntBuffer framebufferSize = frame.mallocInt(2);
+      nglfwGetFramebufferSize(window, MemoryUtil.memAddress(framebufferSize), MemoryUtil.memAddress(framebufferSize) + 4);
+      fbWidth = framebufferSize.get(0);
+      fbHeight = framebufferSize.get(1);
+    }
+    
 
     // Run the rendering loop until the user has attempted to close
     // the window or has pressed the ESCAPE key.
