@@ -43,15 +43,5 @@ public class PGraphicsLWJGL extends PGraphicsOpenGL {
   
   protected PGL createPGL(PGraphicsOpenGL pg) {
     return new PLWJGL(pg);
-  }  
-  
-  protected void setViewport() {
-    viewport.put(0, 0); 
-    viewport.put(1, 0);
-    viewport.put(2, ((PSurfaceLWJGL)surface).fbWidth); 
-    viewport.put(3, ((PSurfaceLWJGL)surface).fbHeight);
-//    System.out.println("Viewport " + ((PSurfaceLWJGL)surface).fbWidth + "x" + ((PSurfaceLWJGL)surface).fbHeight);
-    pgl.viewport(viewport.get(0), viewport.get(1),
-                 viewport.get(2), viewport.get(3));
-  }  
+  }
 }
