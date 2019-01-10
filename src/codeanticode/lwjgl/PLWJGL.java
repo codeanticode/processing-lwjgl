@@ -22,41 +22,40 @@
 
 package codeanticode.lwjgl;
 
-import java.awt.Canvas;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Shape;
-import java.awt.Toolkit;
+import codeanticode.lwjgl.tess.PGLU;
+import codeanticode.lwjgl.tess.PGLUtessellator;
+import codeanticode.lwjgl.tess.PGLUtessellatorCallbackAdapter;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.opengl.ARBMapBufferRange;
+import org.lwjgl.opengl.EXTFramebufferObject;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL21;
+import org.lwjgl.opengl.GL32C;
+import org.lwjgl.system.MemoryStack;
+import processing.core.PApplet;
+import processing.core.PGraphics;
+import processing.opengl.PGL;
+import processing.opengl.PGraphicsOpenGL;
+
+import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.geom.PathIterator;
+import java.io.IOException;
+import java.net.URL;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 
-import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.ARBES2Compatibility;
-import org.lwjgl.opengl.EXTFramebufferObject;
-import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
-import org.lwjgl.opengl.GL13;
-import org.lwjgl.opengl.GL14;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL31;
-import org.lwjgl.opengl.GL32;
-
-import codeanticode.lwjgl.tess.PGLU;
-import codeanticode.lwjgl.tess.PGLUtessellator;
-import codeanticode.lwjgl.tess.PGLUtessellatorCallbackAdapter;
-import processing.core.PApplet;
-import processing.core.PSurface;
-import processing.opengl.PGL;
-import processing.opengl.PGraphicsOpenGL;
+import static org.lwjgl.opengl.ARBES2Compatibility.*;
+import static org.lwjgl.opengl.ARBFramebufferObject.*;
+import static org.lwjgl.opengl.ARBSync.*;
+import static org.lwjgl.opengl.ARBTextureFilterAnisotropic.*;
+import static org.lwjgl.opengl.GL21C.*;
+import static org.lwjgl.system.MemoryStack.stackPush;
 
 /**
  * Processing-OpenGL abstraction layer. LWJGL implementation.
@@ -78,9 +77,6 @@ public class PLWJGL extends PGL {
   /** GLU interface **/
   public PGLU glu;
 
-  /** The canvas where OpenGL rendering takes place */
-  public static Canvas canvas;
-
   // ........................................................
 
   // Utility buffers to copy projection/modelview matrices to GL
@@ -95,9 +91,8 @@ public class PLWJGL extends PGL {
 
   static {
     MIN_DIRECT_BUFFER_SIZE = 16;
-    INDEX_TYPE             = GL11.GL_UNSIGNED_SHORT;
+    INDEX_TYPE             = GL_UNSIGNED_SHORT;
   }
-
 
   ///////////////////////////////////////////////////////////
 
@@ -109,113 +104,42 @@ public class PLWJGL extends PGL {
     glu = new PGLU();
   }
 
-
-  public Canvas getCanvas() {
-    return canvas;
+  @Override
+  protected boolean hasFBOs() {
+    return GL.getCapabilities().GL_ARB_framebuffer_object;
   }
 
-
-//  protected void setFps(float fps) {
-//    if (!setFps || targetFps != fps) {
-//      if (60 < fps) {
-//        // Disables v-sync
-//        System.err.println("Disabling VSync");
-//        Display.setVSyncEnabled(false);
-////        Display.sync((int)fps);
-//      } else  {
-//        Display.setVSyncEnabled(true);
-//      }
-//      targetFps = currentFps = fps;
-//      setFps = true;
-//    }
-//  }
-
-/*
-  protected void initSurface(int antialias) {
-    if (canvas != null) {
-      keyPoller.requestStop();
-      mousePoller.requestStop();
-
-      try {
-        Display.setParent(null);
-      } catch (LWJGLException e) {
-        e.printStackTrace();
-      }
-      Display.destroy();
-
-      pg.parent.remove(canvas);
-    }
-
-    canvas = new Canvas();
-    canvas.setFocusable(true);
-    canvas.requestFocus();
-    canvas.setBackground(new Color(pg.backgroundColor, true));
-    canvas.setBounds(0, 0, pg.parent.width, pg.parent.height);
-
-    pg.parent.setLayout(new BorderLayout());
-    pg.parent.add(canvas, BorderLayout.CENTER);
-
-    try {
-      DisplayMode[] modes = Display.getAvailableDisplayModes();
-      int bpp = 0;
-      for (int i = 0; i < modes.length; i++) {
-        bpp = PApplet.max(modes[i].getBitsPerPixel(), bpp);
-      }
-
-      PixelFormat format;
-      if (USE_FBOLAYER_BY_DEFAULT) {
-        format = new PixelFormat(bpp, REQUESTED_ALPHA_BITS,
-                                      REQUESTED_DEPTH_BITS,
-                                      REQUESTED_STENCIL_BITS, 1);
-        reqNumSamples = qualityToSamples(antialias);
-        fboLayerRequested = true;
-      } else {
-        format = new PixelFormat(bpp, REQUESTED_ALPHA_BITS,
-                                      REQUESTED_DEPTH_BITS,
-                                      REQUESTED_STENCIL_BITS, antialias);
-        fboLayerRequested = false;
-      }
-
-      Display.setDisplayMode(new DisplayMode(pg.parent.width, pg.parent.height));
-      int argb = pg.backgroundColor;
-      float r = ((argb >> 16) & 0xff) / 255.0f;
-      float g = ((argb >> 8) & 0xff) / 255.0f;
-      float b = ((argb) & 0xff) / 255.0f;
-      Display.setInitialBackground(r, g, b);
-      Display.setParent(canvas);
-      Display.create(format);
-
-      // Might be useful later to specify the context attributes.
-      // http://lwjgl.org/javadoc/org/lwjgl/opengl/ContextAttribs.html
-//      ContextAttribs contextAtrributes = new ContextAttribs(4, 0);
-//      contextAtrributes.withForwardCompatible(true);
-//      contextAtrributes.withProfileCore(true);
-//      Display.create(pixelFormat, contextAtrributes);
-    } catch (LWJGLException e) {
-      e.printStackTrace();
-    }
-
-    glContext = Display.getDrawable().hashCode();
-
-    registerListeners();
-
-    fboLayerCreated = false;
-    fboLayerInUse = false;
-    firstFrame = true;
-    setFps = false;
+  @Override
+  protected boolean hasShaders() {
+    // It is enough to check GL_ARB_shading_language_100 because it depends on
+    // ARB_shader_objects, ARB_fragment_shader and ARB_vertex_shader.
+    return GL.getCapabilities().GL_ARB_shading_language_100;
   }
-*/
 
-//  protected void reinitSurface() { }
+  @Override
+  protected boolean hasNpotTexSupport() {
+    return GL.getCapabilities().GL_ARB_texture_non_power_of_two;
+  }
 
+  @Override
+  protected boolean hasAutoMipmapGenSupport() {
+    return GL.getCapabilities().glGenerateMipmap != 0;
+  }
 
-//  protected void registerListeners() {
-//    keyPoller = new KeyPoller(pg.parent);
-//    keyPoller.start();
-//
-//    mousePoller = new MousePoller(pg.parent);
-//    mousePoller.start();
-//  }
+  @Override
+  protected boolean hasFboMultisampleSupport() {
+    return GL.getCapabilities().GL_ARB_framebuffer_object;
+  }
+
+  @Override
+  protected boolean hasPackedDepthStencilSupport() {
+    return GL.getCapabilities().GL_ARB_framebuffer_object;
+  }
+
+  @Override
+  protected boolean hasAnisoSamplingSupport() {
+    return GL.getCapabilities().GL_ARB_texture_filter_anisotropic;
+  }
 
 
   ///////////////////////////////////////////////////////////
@@ -251,10 +175,11 @@ public class PLWJGL extends PGL {
 
   @Override
   protected void beginGL() {
+    // TODO: Content of this whole method is arcane and needs to go [jv 2018-11-07]
     if (projMatrix == null) {
       projMatrix = allocateFloatBuffer(16);
     }
-    GL11.glMatrixMode(GL11.GL_PROJECTION);
+    GL21.glMatrixMode(GL21.GL_PROJECTION);
     projMatrix.rewind();
     projMatrix.put(graphics.projection.m00);
     projMatrix.put(graphics.projection.m10);
@@ -273,12 +198,12 @@ public class PLWJGL extends PGL {
     projMatrix.put(graphics.projection.m23);
     projMatrix.put(graphics.projection.m33);
     projMatrix.rewind();
-    GL11.glLoadMatrixf(projMatrix);
+    GL21.glLoadMatrixf(projMatrix);
 
     if (mvMatrix == null) {
       mvMatrix = allocateFloatBuffer(16);
     }
-    GL11.glMatrixMode(GL11.GL_MODELVIEW);
+    GL21.glMatrixMode(GL21.GL_MODELVIEW);
     mvMatrix.rewind();
     mvMatrix.put(graphics.modelview.m00);
     mvMatrix.put(graphics.modelview.m10);
@@ -297,7 +222,7 @@ public class PLWJGL extends PGL {
     mvMatrix.put(graphics.modelview.m23);
     mvMatrix.put(graphics.modelview.m33);
     mvMatrix.rewind();
-    GL11.glLoadMatrixf(mvMatrix);
+    GL21.glLoadMatrixf(mvMatrix);
   }
 
 
@@ -305,6 +230,10 @@ public class PLWJGL extends PGL {
 
   // Utility functions
 
+  // TODO: These don't overload methods from PGL with the same names, buffer
+  //       handling should be reworked globally, in the best case we can change
+  //       most of the buffers to stack allocation [jv 2018-11-05]
+  //       See: https://blog.lwjgl.org/memory-management-in-lwjgl-3/
 
   protected static ByteBuffer allocateDirectByteBuffer(int size) {
     return BufferUtils.createByteBuffer(size);
@@ -530,290 +459,298 @@ public class PLWJGL extends PGL {
   // Constants
 
   static {
-    FALSE = GL11.GL_FALSE;
-    TRUE  = GL11.GL_TRUE;
+    FALSE = GL_FALSE;
+    TRUE = GL_TRUE;
 
-    INT            = GL11.GL_INT;
-    BYTE           = GL11.GL_BYTE;
-    SHORT          = GL11.GL_SHORT;
-    FLOAT          = GL11.GL_FLOAT;
-    BOOL           = GL20.GL_BOOL;
-    UNSIGNED_INT   = GL11.GL_UNSIGNED_INT;
-    UNSIGNED_BYTE  = GL11.GL_UNSIGNED_BYTE;
-    UNSIGNED_SHORT = GL11.GL_UNSIGNED_SHORT;
+    INT = GL_INT;
+    BYTE = GL_BYTE;
+    SHORT = GL_SHORT;
+    FLOAT = GL_FLOAT;
+    BOOL = GL_BOOL;
+    UNSIGNED_INT = GL_UNSIGNED_INT;
+    UNSIGNED_BYTE = GL_UNSIGNED_BYTE;
+    UNSIGNED_SHORT = GL_UNSIGNED_SHORT;
 
-    RGB             = GL11.GL_RGB;
-    RGBA            = GL11.GL_RGBA;
-    ALPHA           = GL11.GL_ALPHA;
-    LUMINANCE       = GL11.GL_LUMINANCE;
-    LUMINANCE_ALPHA = GL11.GL_LUMINANCE_ALPHA;
+    RGB = GL_RGB;
+    RGBA = GL_RGBA;
+    ALPHA = GL_ALPHA;
+    LUMINANCE = GL21.GL_LUMINANCE; // TODO: not used, not core, remove
+    LUMINANCE_ALPHA = GL21.GL_LUMINANCE_ALPHA; // TODO: not used, not core, remove
 
-    UNSIGNED_SHORT_5_6_5   = GL12.GL_UNSIGNED_SHORT_5_6_5;
-    UNSIGNED_SHORT_4_4_4_4 = GL12.GL_UNSIGNED_SHORT_4_4_4_4;
-    UNSIGNED_SHORT_5_5_5_1 = GL12.GL_UNSIGNED_SHORT_5_5_5_1;
+    UNSIGNED_SHORT_5_6_5 = GL_UNSIGNED_SHORT_5_6_5;
+    UNSIGNED_SHORT_4_4_4_4 = GL_UNSIGNED_SHORT_4_4_4_4;
+    UNSIGNED_SHORT_5_5_5_1 = GL_UNSIGNED_SHORT_5_5_5_1;
 
-    RGBA4   = GL11.GL_RGBA4;
-    RGB5_A1 = GL11.GL_RGB5_A1;
-    RGB565  = ARBES2Compatibility.GL_RGB565;
-    RGB8    = GL11.GL_RGB8;
-    RGBA8   = GL11.GL_RGBA8;
-    ALPHA8  = GL11.GL_ALPHA8;
+    RGBA4 = GL_RGBA4;
+    RGB5_A1 = GL_RGB5_A1;
+    RGB565 = GL_RGB565;
+    RGB8 = GL_RGB8;
+    RGBA8 = GL_RGBA8;
+    ALPHA8 = GL21.GL_ALPHA8; // TODO: not used, not core, remove
 
-    READ_ONLY  = GL15.GL_READ_ONLY;
-    WRITE_ONLY = GL15.GL_WRITE_ONLY;
-    READ_WRITE = GL15.GL_READ_WRITE;
+    READ_ONLY = GL_READ_ONLY;
+    WRITE_ONLY = GL_WRITE_ONLY;
+    READ_WRITE = GL_READ_WRITE;
 
     TESS_WINDING_NONZERO = PGLU.GLU_TESS_WINDING_NONZERO;
-    TESS_WINDING_ODD     = PGLU.GLU_TESS_WINDING_ODD;
+    TESS_WINDING_ODD = PGLU.GLU_TESS_WINDING_ODD;
+    TESS_EDGE_FLAG = PGLU.GLU_TESS_EDGE_FLAG; // TODO: not used, not core, remove
 
-    GENERATE_MIPMAP_HINT = GL14.GL_GENERATE_MIPMAP_HINT;
-    FASTEST              = GL11.GL_FASTEST;
-    NICEST               = GL11.GL_NICEST;
-    DONT_CARE            = GL11.GL_DONT_CARE;
+    GENERATE_MIPMAP_HINT = GL21.GL_GENERATE_MIPMAP_HINT; // TODO: not used, not core, remove
+    FASTEST = GL_FASTEST;
+    NICEST = GL_NICEST;
+    DONT_CARE = GL_DONT_CARE;
 
-    VENDOR                   = GL11.GL_VENDOR;
-    RENDERER                 = GL11.GL_RENDERER;
-    VERSION                  = GL11.GL_VERSION;
-    EXTENSIONS               = GL11.GL_EXTENSIONS;
-    SHADING_LANGUAGE_VERSION = GL20.GL_SHADING_LANGUAGE_VERSION;
+    VENDOR = GL_VENDOR;
+    RENDERER = GL_RENDERER;
+    VERSION = GL_VERSION;
+    EXTENSIONS = GL_EXTENSIONS;
+    SHADING_LANGUAGE_VERSION = GL_SHADING_LANGUAGE_VERSION;
 
-    MAX_SAMPLES = GL30.GL_MAX_SAMPLES;
-    SAMPLES     = GL13.GL_SAMPLES;
+    MAX_SAMPLES = GL_MAX_SAMPLES;
+    SAMPLES = GL_SAMPLES;
 
-    ALIASED_LINE_WIDTH_RANGE = GL12.GL_ALIASED_LINE_WIDTH_RANGE;
-    ALIASED_POINT_SIZE_RANGE = GL12.GL_ALIASED_POINT_SIZE_RANGE;
+    ALIASED_LINE_WIDTH_RANGE = GL_ALIASED_LINE_WIDTH_RANGE;
+    ALIASED_POINT_SIZE_RANGE = GL21.GL_ALIASED_POINT_SIZE_RANGE; // TODO: not used, not core, remove
 
-    DEPTH_BITS   = GL11.GL_DEPTH_BITS;
-    STENCIL_BITS = GL11.GL_STENCIL_BITS;
+    DEPTH_BITS = GL21.GL_DEPTH_BITS; // TODO: not used, not core, remove
+    STENCIL_BITS = GL21.GL_STENCIL_BITS; // TODO: not used, not core, remove
 
-    CCW = GL11.GL_CCW;
-    CW  = GL11.GL_CW;
+    CCW = GL_CCW;
+    CW = GL_CW;
 
-    VIEWPORT = GL11.GL_VIEWPORT;
+    VIEWPORT = GL_VIEWPORT;
 
-    ARRAY_BUFFER         = GL15.GL_ARRAY_BUFFER;
-    ELEMENT_ARRAY_BUFFER = GL15.GL_ELEMENT_ARRAY_BUFFER;
+    ARRAY_BUFFER = GL_ARRAY_BUFFER;
+    ELEMENT_ARRAY_BUFFER = GL_ELEMENT_ARRAY_BUFFER;
+    PIXEL_PACK_BUFFER = GL_PIXEL_PACK_BUFFER;
 
-    MAX_VERTEX_ATTRIBS  = GL20.GL_MAX_VERTEX_ATTRIBS;
+    MAX_VERTEX_ATTRIBS = GL_MAX_VERTEX_ATTRIBS;
 
-    STATIC_DRAW  = GL15.GL_STATIC_DRAW;
-    DYNAMIC_DRAW = GL15.GL_DYNAMIC_DRAW;
-    STREAM_DRAW  = GL15.GL_STREAM_DRAW;
+    STATIC_DRAW = GL_STATIC_DRAW;
+    DYNAMIC_DRAW = GL_DYNAMIC_DRAW;
+    STREAM_DRAW = GL_STREAM_DRAW;
+    STREAM_READ = GL_STREAM_READ;
 
-    BUFFER_SIZE  = GL15.GL_BUFFER_SIZE;
-    BUFFER_USAGE = GL15.GL_BUFFER_USAGE;
+    BUFFER_SIZE = GL_BUFFER_SIZE;
+    BUFFER_USAGE = GL_BUFFER_USAGE;
 
-    POINTS         = GL11.GL_POINTS;
-    LINE_STRIP     = GL11.GL_LINE_STRIP;
-    LINE_LOOP      = GL11.GL_LINE_LOOP;
-    LINES          = GL11.GL_LINES;
-    TRIANGLE_FAN   = GL11.GL_TRIANGLE_FAN;
-    TRIANGLE_STRIP = GL11.GL_TRIANGLE_STRIP;
-    TRIANGLES      = GL11.GL_TRIANGLES;
+    POINTS = GL_POINTS;
+    LINE_STRIP = GL_LINE_STRIP;
+    LINE_LOOP = GL_LINE_LOOP;
+    LINES = GL_LINES;
+    TRIANGLE_FAN = GL_TRIANGLE_FAN;
+    TRIANGLE_STRIP = GL_TRIANGLE_STRIP;
+    TRIANGLES = GL_TRIANGLES;
 
-    CULL_FACE      = GL11.GL_CULL_FACE;
-    FRONT          = GL11.GL_FRONT;
-    BACK           = GL11.GL_BACK;
-    FRONT_AND_BACK = GL11.GL_FRONT_AND_BACK;
+    CULL_FACE = GL_CULL_FACE;
+    FRONT = GL_FRONT;
+    BACK = GL_BACK;
+    FRONT_AND_BACK = GL_FRONT_AND_BACK;
 
-    POLYGON_OFFSET_FILL = GL11.GL_POLYGON_OFFSET_FILL;
+    POLYGON_OFFSET_FILL = GL_POLYGON_OFFSET_FILL;
 
-    UNPACK_ALIGNMENT = GL11.GL_UNPACK_ALIGNMENT;
-    PACK_ALIGNMENT   = GL11.GL_PACK_ALIGNMENT;
+    UNPACK_ALIGNMENT = GL_UNPACK_ALIGNMENT;
+    PACK_ALIGNMENT = GL_PACK_ALIGNMENT;
 
-    TEXTURE_2D        = GL11.GL_TEXTURE_2D;
-    TEXTURE_RECTANGLE = GL31.GL_TEXTURE_RECTANGLE;
+    TEXTURE_2D = GL_TEXTURE_2D;
+    TEXTURE_RECTANGLE = GL32C.GL_TEXTURE_RECTANGLE; // TODO: rectangular textures are not used anywhere, remove
 
-    TEXTURE_BINDING_2D        = GL11.GL_TEXTURE_BINDING_2D;
-    TEXTURE_BINDING_RECTANGLE = GL31.GL_TEXTURE_BINDING_RECTANGLE;
+    TEXTURE_BINDING_2D = GL_TEXTURE_BINDING_2D;
+    TEXTURE_BINDING_RECTANGLE = GL32C.GL_TEXTURE_BINDING_RECTANGLE; // TODO: rectangular textures are not used anywhere, remove
 
-    MAX_TEXTURE_SIZE           = GL11.GL_MAX_TEXTURE_SIZE;
-    TEXTURE_MAX_ANISOTROPY     = EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT;
-    MAX_TEXTURE_MAX_ANISOTROPY = EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT;
+    MAX_TEXTURE_SIZE = GL_MAX_TEXTURE_SIZE;
+    TEXTURE_MAX_ANISOTROPY = GL_TEXTURE_MAX_ANISOTROPY;
+    MAX_TEXTURE_MAX_ANISOTROPY = GL_MAX_TEXTURE_MAX_ANISOTROPY;
 
-    MAX_VERTEX_TEXTURE_IMAGE_UNITS   = GL20.GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
-    MAX_TEXTURE_IMAGE_UNITS          = GL20.GL_MAX_TEXTURE_IMAGE_UNITS;
-    MAX_COMBINED_TEXTURE_IMAGE_UNITS = GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS;
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS = GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
+    MAX_TEXTURE_IMAGE_UNITS = GL_MAX_TEXTURE_IMAGE_UNITS;
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS = GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS;
 
-    NUM_COMPRESSED_TEXTURE_FORMATS = GL13.GL_NUM_COMPRESSED_TEXTURE_FORMATS;
-    COMPRESSED_TEXTURE_FORMATS     = GL13.GL_COMPRESSED_TEXTURE_FORMATS;
+    NUM_COMPRESSED_TEXTURE_FORMATS = GL_NUM_COMPRESSED_TEXTURE_FORMATS;
+    COMPRESSED_TEXTURE_FORMATS = GL_COMPRESSED_TEXTURE_FORMATS;
 
-    NEAREST               = GL11.GL_NEAREST;
-    LINEAR                = GL11.GL_LINEAR;
-    LINEAR_MIPMAP_NEAREST = GL11.GL_LINEAR_MIPMAP_NEAREST;
-    LINEAR_MIPMAP_LINEAR  = GL11.GL_LINEAR_MIPMAP_LINEAR;
+    NEAREST = GL_NEAREST;
+    LINEAR = GL_LINEAR;
+    LINEAR_MIPMAP_NEAREST = GL_LINEAR_MIPMAP_NEAREST;
+    LINEAR_MIPMAP_LINEAR = GL_LINEAR_MIPMAP_LINEAR;
 
-    CLAMP_TO_EDGE = GL12.GL_CLAMP_TO_EDGE;
-    REPEAT        = GL11.GL_REPEAT;
+    CLAMP_TO_EDGE = GL_CLAMP_TO_EDGE;
+    REPEAT = GL_REPEAT;
 
-    TEXTURE0           = GL13.GL_TEXTURE0;
-    TEXTURE1           = GL13.GL_TEXTURE1;
-    TEXTURE2           = GL13.GL_TEXTURE2;
-    TEXTURE3           = GL13.GL_TEXTURE3;
-    TEXTURE_MIN_FILTER = GL11.GL_TEXTURE_MIN_FILTER;
-    TEXTURE_MAG_FILTER = GL11.GL_TEXTURE_MAG_FILTER;
-    TEXTURE_WRAP_S     = GL11.GL_TEXTURE_WRAP_S;
-    TEXTURE_WRAP_T     = GL11.GL_TEXTURE_WRAP_T;
-    TEXTURE_WRAP_R     = GL12.GL_TEXTURE_WRAP_R;
+    TEXTURE0 = GL_TEXTURE0;
+    TEXTURE1 = GL_TEXTURE1;
+    TEXTURE2 = GL_TEXTURE2;
+    TEXTURE3 = GL_TEXTURE3;
+    TEXTURE_MIN_FILTER = GL_TEXTURE_MIN_FILTER;
+    TEXTURE_MAG_FILTER = GL_TEXTURE_MAG_FILTER;
+    TEXTURE_WRAP_S = GL_TEXTURE_WRAP_S;
+    TEXTURE_WRAP_T = GL_TEXTURE_WRAP_T;
+    TEXTURE_WRAP_R = GL_TEXTURE_WRAP_R;
 
-    TEXTURE_CUBE_MAP = GL13.GL_TEXTURE_CUBE_MAP;
-    TEXTURE_CUBE_MAP_POSITIVE_X = GL13.GL_TEXTURE_CUBE_MAP_POSITIVE_X;
-    TEXTURE_CUBE_MAP_POSITIVE_Y = GL13.GL_TEXTURE_CUBE_MAP_POSITIVE_Y;
-    TEXTURE_CUBE_MAP_POSITIVE_Z = GL13.GL_TEXTURE_CUBE_MAP_POSITIVE_Z;
-    TEXTURE_CUBE_MAP_NEGATIVE_X = GL13.GL_TEXTURE_CUBE_MAP_NEGATIVE_X;
-    TEXTURE_CUBE_MAP_NEGATIVE_Y = GL13.GL_TEXTURE_CUBE_MAP_NEGATIVE_Y;
-    TEXTURE_CUBE_MAP_NEGATIVE_Z = GL13.GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+    TEXTURE_CUBE_MAP = GL_TEXTURE_CUBE_MAP;
+    TEXTURE_CUBE_MAP_POSITIVE_X = GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+    TEXTURE_CUBE_MAP_POSITIVE_Y = GL_TEXTURE_CUBE_MAP_POSITIVE_Y;
+    TEXTURE_CUBE_MAP_POSITIVE_Z = GL_TEXTURE_CUBE_MAP_POSITIVE_Z;
+    TEXTURE_CUBE_MAP_NEGATIVE_X = GL_TEXTURE_CUBE_MAP_NEGATIVE_X;
+    TEXTURE_CUBE_MAP_NEGATIVE_Y = GL_TEXTURE_CUBE_MAP_NEGATIVE_Y;
+    TEXTURE_CUBE_MAP_NEGATIVE_Z = GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
 
-    VERTEX_SHADER        = GL20.GL_VERTEX_SHADER;
-    FRAGMENT_SHADER      = GL20.GL_FRAGMENT_SHADER;
-    INFO_LOG_LENGTH      = GL20.GL_INFO_LOG_LENGTH;
-    SHADER_SOURCE_LENGTH = GL20.GL_SHADER_SOURCE_LENGTH;
-    COMPILE_STATUS       = GL20.GL_COMPILE_STATUS;
-    LINK_STATUS          = GL20.GL_LINK_STATUS;
-    VALIDATE_STATUS      = GL20.GL_VALIDATE_STATUS;
-    SHADER_TYPE          = GL20.GL_SHADER_TYPE;
-    DELETE_STATUS        = GL20.GL_DELETE_STATUS;
+    VERTEX_SHADER = GL_VERTEX_SHADER;
+    FRAGMENT_SHADER = GL_FRAGMENT_SHADER;
+    INFO_LOG_LENGTH = GL_INFO_LOG_LENGTH;
+    SHADER_SOURCE_LENGTH = GL_SHADER_SOURCE_LENGTH;
+    COMPILE_STATUS = GL_COMPILE_STATUS;
+    LINK_STATUS = GL_LINK_STATUS;
+    VALIDATE_STATUS = GL_VALIDATE_STATUS;
+    SHADER_TYPE = GL_SHADER_TYPE;
+    DELETE_STATUS = GL_DELETE_STATUS;
 
-    FLOAT_VEC2   = GL20.GL_FLOAT_VEC2;
-    FLOAT_VEC3   = GL20.GL_FLOAT_VEC3;
-    FLOAT_VEC4   = GL20.GL_FLOAT_VEC4;
-    FLOAT_MAT2   = GL20.GL_FLOAT_MAT2;
-    FLOAT_MAT3   = GL20.GL_FLOAT_MAT3;
-    FLOAT_MAT4   = GL20.GL_FLOAT_MAT4;
-    INT_VEC2     = GL20.GL_INT_VEC2;
-    INT_VEC3     = GL20.GL_INT_VEC3;
-    INT_VEC4     = GL20.GL_INT_VEC4;
-    BOOL_VEC2    = GL20.GL_BOOL_VEC2;
-    BOOL_VEC3    = GL20.GL_BOOL_VEC3;
-    BOOL_VEC4    = GL20.GL_BOOL_VEC4;
-    SAMPLER_2D   = GL20.GL_SAMPLER_2D;
-    SAMPLER_CUBE = GL20.GL_SAMPLER_CUBE;
+    FLOAT_VEC2 = GL_FLOAT_VEC2;
+    FLOAT_VEC3 = GL_FLOAT_VEC3;
+    FLOAT_VEC4 = GL_FLOAT_VEC4;
+    FLOAT_MAT2 = GL_FLOAT_MAT2;
+    FLOAT_MAT3 = GL_FLOAT_MAT3;
+    FLOAT_MAT4 = GL_FLOAT_MAT4;
+    INT_VEC2 = GL_INT_VEC2;
+    INT_VEC3 = GL_INT_VEC3;
+    INT_VEC4 = GL_INT_VEC4;
+    BOOL_VEC2 = GL_BOOL_VEC2;
+    BOOL_VEC3 = GL_BOOL_VEC3;
+    BOOL_VEC4 = GL_BOOL_VEC4;
+    SAMPLER_2D = GL_SAMPLER_2D;
+    SAMPLER_CUBE = GL_SAMPLER_CUBE;
 
-    LOW_FLOAT    = ARBES2Compatibility.GL_LOW_FLOAT;
-    MEDIUM_FLOAT = ARBES2Compatibility.GL_MEDIUM_FLOAT;
-    HIGH_FLOAT   = ARBES2Compatibility.GL_HIGH_FLOAT;
-    LOW_INT      = ARBES2Compatibility.GL_LOW_INT;
-    MEDIUM_INT   = ARBES2Compatibility.GL_MEDIUM_INT;
-    HIGH_INT     = ARBES2Compatibility.GL_HIGH_INT;
+    LOW_FLOAT = GL_LOW_FLOAT;
+    MEDIUM_FLOAT = GL_MEDIUM_FLOAT;
+    HIGH_FLOAT = GL_HIGH_FLOAT;
+    LOW_INT = GL_LOW_INT;
+    MEDIUM_INT = GL_MEDIUM_INT;
+    HIGH_INT = GL_HIGH_INT;
 
-    CURRENT_VERTEX_ATTRIB = GL20.GL_CURRENT_VERTEX_ATTRIB;
+    CURRENT_VERTEX_ATTRIB = GL_CURRENT_VERTEX_ATTRIB;
 
-    VERTEX_ATTRIB_ARRAY_BUFFER_BINDING = GL15.GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING;
-    VERTEX_ATTRIB_ARRAY_ENABLED        = GL20.GL_VERTEX_ATTRIB_ARRAY_ENABLED;
-    VERTEX_ATTRIB_ARRAY_SIZE           = GL20.GL_VERTEX_ATTRIB_ARRAY_SIZE;
-    VERTEX_ATTRIB_ARRAY_STRIDE         = GL20.GL_VERTEX_ATTRIB_ARRAY_STRIDE;
-    VERTEX_ATTRIB_ARRAY_TYPE           = GL20.GL_VERTEX_ATTRIB_ARRAY_TYPE;
-    VERTEX_ATTRIB_ARRAY_NORMALIZED     = GL20.GL_VERTEX_ATTRIB_ARRAY_NORMALIZED;
-    VERTEX_ATTRIB_ARRAY_POINTER        = GL20.GL_VERTEX_ATTRIB_ARRAY_POINTER;
+    VERTEX_ATTRIB_ARRAY_BUFFER_BINDING = GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING;
+    VERTEX_ATTRIB_ARRAY_ENABLED = GL_VERTEX_ATTRIB_ARRAY_ENABLED;
+    VERTEX_ATTRIB_ARRAY_SIZE = GL_VERTEX_ATTRIB_ARRAY_SIZE;
+    VERTEX_ATTRIB_ARRAY_STRIDE = GL_VERTEX_ATTRIB_ARRAY_STRIDE;
+    VERTEX_ATTRIB_ARRAY_TYPE = GL_VERTEX_ATTRIB_ARRAY_TYPE;
+    VERTEX_ATTRIB_ARRAY_NORMALIZED = GL_VERTEX_ATTRIB_ARRAY_NORMALIZED;
+    VERTEX_ATTRIB_ARRAY_POINTER = GL_VERTEX_ATTRIB_ARRAY_POINTER;
 
-    BLEND               = GL11.GL_BLEND;
-    ONE                 = GL11.GL_ONE;
-    ZERO                = GL11.GL_ZERO;
-    SRC_ALPHA           = GL11.GL_SRC_ALPHA;
-    DST_ALPHA           = GL11.GL_DST_ALPHA;
-    ONE_MINUS_SRC_ALPHA = GL11.GL_ONE_MINUS_SRC_ALPHA;
-    ONE_MINUS_DST_COLOR = GL11.GL_ONE_MINUS_DST_COLOR;
-    ONE_MINUS_SRC_COLOR = GL11.GL_ONE_MINUS_SRC_COLOR;
-    DST_COLOR           = GL11.GL_DST_COLOR;
-    SRC_COLOR           = GL11.GL_SRC_COLOR;
+    BLEND = GL_BLEND;
+    ONE = GL_ONE;
+    ZERO = GL_ZERO;
+    SRC_ALPHA = GL_SRC_ALPHA;
+    DST_ALPHA = GL_DST_ALPHA;
+    ONE_MINUS_SRC_ALPHA = GL_ONE_MINUS_SRC_ALPHA;
+    ONE_MINUS_DST_COLOR = GL_ONE_MINUS_DST_COLOR;
+    ONE_MINUS_SRC_COLOR = GL_ONE_MINUS_SRC_COLOR;
+    DST_COLOR = GL_DST_COLOR;
+    SRC_COLOR = GL_SRC_COLOR;
 
-    SAMPLE_ALPHA_TO_COVERAGE = GL13.GL_SAMPLE_ALPHA_TO_COVERAGE;
-    SAMPLE_COVERAGE          = GL13.GL_SAMPLE_COVERAGE;
+    SAMPLE_ALPHA_TO_COVERAGE = GL_SAMPLE_ALPHA_TO_COVERAGE;
+    SAMPLE_COVERAGE = GL_SAMPLE_COVERAGE;
 
-    KEEP      = GL11.GL_KEEP;
-    REPLACE   = GL11.GL_REPLACE;
-    INCR      = GL11.GL_INCR;
-    DECR      = GL11.GL_DECR;
-    INVERT    = GL11.GL_INVERT;
-    INCR_WRAP = GL14.GL_INCR_WRAP;
-    DECR_WRAP = GL14.GL_DECR_WRAP;
-    NEVER     = GL11.GL_NEVER;
-    ALWAYS    = GL11.GL_ALWAYS;
+    KEEP = GL_KEEP;
+    REPLACE = GL_REPLACE;
+    INCR = GL_INCR;
+    DECR = GL_DECR;
+    INVERT = GL_INVERT;
+    INCR_WRAP = GL_INCR_WRAP;
+    DECR_WRAP = GL_DECR_WRAP;
+    NEVER = GL_NEVER;
+    ALWAYS = GL_ALWAYS;
 
-    EQUAL    = GL11.GL_EQUAL;
-    LESS     = GL11.GL_LESS;
-    LEQUAL   = GL11.GL_LEQUAL;
-    GREATER  = GL11.GL_GREATER;
-    GEQUAL   = GL11.GL_GEQUAL;
-    NOTEQUAL = GL11.GL_NOTEQUAL;
+    EQUAL = GL_EQUAL;
+    LESS = GL_LESS;
+    LEQUAL = GL_LEQUAL;
+    GREATER = GL_GREATER;
+    GEQUAL = GL_GEQUAL;
+    NOTEQUAL = GL_NOTEQUAL;
 
-    FUNC_ADD              = GL14.GL_FUNC_ADD;
-    FUNC_MIN              = GL14.GL_MIN;
-    FUNC_MAX              = GL14.GL_MAX;
-    FUNC_REVERSE_SUBTRACT = GL14.GL_FUNC_REVERSE_SUBTRACT;
-    FUNC_SUBTRACT         = GL14.GL_FUNC_SUBTRACT;
+    FUNC_ADD = GL_FUNC_ADD;
+    FUNC_MIN = GL_MIN;
+    FUNC_MAX = GL_MAX;
+    FUNC_REVERSE_SUBTRACT = GL_FUNC_REVERSE_SUBTRACT;
+    FUNC_SUBTRACT = GL_FUNC_SUBTRACT;
 
-    DITHER = GL11.GL_DITHER;
+    DITHER = GL_DITHER;
 
-    CONSTANT_COLOR           = GL14.GL_CONSTANT_COLOR;
-    CONSTANT_ALPHA           = GL14.GL_CONSTANT_ALPHA;
-    ONE_MINUS_CONSTANT_COLOR = GL14.GL_ONE_MINUS_CONSTANT_COLOR;
-    ONE_MINUS_CONSTANT_ALPHA = GL14.GL_ONE_MINUS_CONSTANT_ALPHA;
-    SRC_ALPHA_SATURATE       = GL11.GL_SRC_ALPHA_SATURATE;
+    CONSTANT_COLOR = GL_CONSTANT_COLOR;
+    CONSTANT_ALPHA = GL_CONSTANT_ALPHA;
+    ONE_MINUS_CONSTANT_COLOR = GL_ONE_MINUS_CONSTANT_COLOR;
+    ONE_MINUS_CONSTANT_ALPHA = GL_ONE_MINUS_CONSTANT_ALPHA;
+    SRC_ALPHA_SATURATE = GL_SRC_ALPHA_SATURATE;
 
-    SCISSOR_TEST    = GL11.GL_SCISSOR_TEST;
-    STENCIL_TEST    = GL11.GL_STENCIL_TEST;
-    DEPTH_TEST      = GL11.GL_DEPTH_TEST;
-    DEPTH_WRITEMASK = GL11.GL_DEPTH_WRITEMASK;
-//    ALPHA_TEST      = GL11.GL_ALPHA_TEST;
+    SCISSOR_TEST = GL_SCISSOR_TEST;
+    STENCIL_TEST = GL_STENCIL_TEST;
+    DEPTH_TEST = GL_DEPTH_TEST;
+    DEPTH_WRITEMASK = GL_DEPTH_WRITEMASK;
 
-    COLOR_BUFFER_BIT   = GL11.GL_COLOR_BUFFER_BIT;
-    DEPTH_BUFFER_BIT   = GL11.GL_DEPTH_BUFFER_BIT;
-    STENCIL_BUFFER_BIT = GL11.GL_STENCIL_BUFFER_BIT;
+    COLOR_BUFFER_BIT = GL_COLOR_BUFFER_BIT;
+    DEPTH_BUFFER_BIT = GL_DEPTH_BUFFER_BIT;
+    STENCIL_BUFFER_BIT = GL_STENCIL_BUFFER_BIT;
 
-    FRAMEBUFFER        = GL30.GL_FRAMEBUFFER;
-    COLOR_ATTACHMENT0  = GL30.GL_COLOR_ATTACHMENT0;
-    COLOR_ATTACHMENT1  = GL30.GL_COLOR_ATTACHMENT1;
-    COLOR_ATTACHMENT2  = GL30.GL_COLOR_ATTACHMENT2;
-    COLOR_ATTACHMENT3  = GL30.GL_COLOR_ATTACHMENT3;
-    RENDERBUFFER       = GL30.GL_RENDERBUFFER;
-    DEPTH_ATTACHMENT   = GL30.GL_DEPTH_ATTACHMENT;
-    STENCIL_ATTACHMENT = GL30.GL_STENCIL_ATTACHMENT;
-    READ_FRAMEBUFFER   = GL30.GL_READ_FRAMEBUFFER;
-    DRAW_FRAMEBUFFER   = GL30.GL_DRAW_FRAMEBUFFER;
+    FRAMEBUFFER = GL_FRAMEBUFFER;
+    COLOR_ATTACHMENT0 = GL_COLOR_ATTACHMENT0;
+    COLOR_ATTACHMENT1 = GL_COLOR_ATTACHMENT1;
+    COLOR_ATTACHMENT2 = GL_COLOR_ATTACHMENT2;
+    COLOR_ATTACHMENT3 = GL_COLOR_ATTACHMENT3;
+    RENDERBUFFER = GL_RENDERBUFFER;
+    DEPTH_ATTACHMENT = GL_DEPTH_ATTACHMENT;
+    STENCIL_ATTACHMENT = GL_STENCIL_ATTACHMENT;
+    READ_FRAMEBUFFER = GL_READ_FRAMEBUFFER;
+    DRAW_FRAMEBUFFER = GL_DRAW_FRAMEBUFFER;
 
-    DEPTH24_STENCIL8 = GL30.GL_DEPTH24_STENCIL8;
+    DEPTH24_STENCIL8 = GL_DEPTH24_STENCIL8;
 
-    DEPTH_COMPONENT   = GL11.GL_DEPTH_COMPONENT;
-    DEPTH_COMPONENT16 = GL14.GL_DEPTH_COMPONENT16;
-    DEPTH_COMPONENT24 = GL14.GL_DEPTH_COMPONENT24;
-    DEPTH_COMPONENT32 = GL14.GL_DEPTH_COMPONENT32;
+    DEPTH_COMPONENT = GL_DEPTH_COMPONENT;
+    DEPTH_COMPONENT16 = GL_DEPTH_COMPONENT16;
+    DEPTH_COMPONENT24 = GL_DEPTH_COMPONENT24;
+    DEPTH_COMPONENT32 = GL_DEPTH_COMPONENT32;
 
-    STENCIL_INDEX  = GL11.GL_STENCIL_INDEX;
-    STENCIL_INDEX1 = GL30.GL_STENCIL_INDEX1;
-    STENCIL_INDEX4 = GL30.GL_STENCIL_INDEX4;
-    STENCIL_INDEX8 = GL30.GL_STENCIL_INDEX8;
+    STENCIL_INDEX = GL_STENCIL_INDEX;
+    STENCIL_INDEX1 = GL_STENCIL_INDEX1;
+    STENCIL_INDEX4 = GL_STENCIL_INDEX4;
+    STENCIL_INDEX8 = GL_STENCIL_INDEX8;
 
-    DEPTH_STENCIL = GL30.GL_DEPTH_STENCIL;
+    DEPTH_STENCIL = GL_DEPTH_STENCIL;
 
-    FRAMEBUFFER_COMPLETE                      = GL30.GL_FRAMEBUFFER_COMPLETE;
-    FRAMEBUFFER_INCOMPLETE_ATTACHMENT         = GL30.GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
-    FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT = GL30.GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
-    FRAMEBUFFER_INCOMPLETE_DIMENSIONS         = EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT;
-    FRAMEBUFFER_INCOMPLETE_FORMATS            = EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT;
-    FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER        = GL30.GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER;
-    FRAMEBUFFER_INCOMPLETE_READ_BUFFER        = GL30.GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER;
-    FRAMEBUFFER_UNSUPPORTED                   = GL30.GL_FRAMEBUFFER_UNSUPPORTED;
+    FRAMEBUFFER_COMPLETE = GL_FRAMEBUFFER_COMPLETE;
+    FRAMEBUFFER_UNDEFINED = GL_FRAMEBUFFER_UNDEFINED;
+    FRAMEBUFFER_INCOMPLETE_ATTACHMENT = GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+    FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT = GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
+    FRAMEBUFFER_INCOMPLETE_DIMENSIONS = EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT; // TODO: not part of standard OpenGL, remove
+    FRAMEBUFFER_INCOMPLETE_FORMATS = EXTFramebufferObject.GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT; // TODO: not part of standard OpenGL, remove
+    FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER = GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER;
+    FRAMEBUFFER_INCOMPLETE_READ_BUFFER = GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER;
+    FRAMEBUFFER_UNSUPPORTED = GL_FRAMEBUFFER_UNSUPPORTED;
+    FRAMEBUFFER_INCOMPLETE_MULTISAMPLE = GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE;
+    FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS = GL32C.GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS;
 
-    FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE           = GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE;
-    FRAMEBUFFER_ATTACHMENT_OBJECT_NAME           = GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME;
-    FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL         = GL30.GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL;
-    FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE = GL30.GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE;
+    FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE = GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE;
+    FRAMEBUFFER_ATTACHMENT_OBJECT_NAME = GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME;
+    FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL = GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL;
+    FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE = GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE;
 
-    RENDERBUFFER_WIDTH           = GL30.GL_RENDERBUFFER_WIDTH;
-    RENDERBUFFER_HEIGHT          = GL30.GL_RENDERBUFFER_HEIGHT;
-    RENDERBUFFER_RED_SIZE        = GL30.GL_RENDERBUFFER_RED_SIZE;
-    RENDERBUFFER_GREEN_SIZE      = GL30.GL_RENDERBUFFER_GREEN_SIZE;
-    RENDERBUFFER_BLUE_SIZE       = GL30.GL_RENDERBUFFER_BLUE_SIZE;
-    RENDERBUFFER_ALPHA_SIZE      = GL30.GL_RENDERBUFFER_ALPHA_SIZE;
-    RENDERBUFFER_DEPTH_SIZE      = GL30.GL_RENDERBUFFER_DEPTH_SIZE;
-    RENDERBUFFER_STENCIL_SIZE    = GL30.GL_RENDERBUFFER_STENCIL_SIZE;
-    RENDERBUFFER_INTERNAL_FORMAT = GL30.GL_RENDERBUFFER_INTERNAL_FORMAT;
+    RENDERBUFFER_WIDTH = GL_RENDERBUFFER_WIDTH;
+    RENDERBUFFER_HEIGHT = GL_RENDERBUFFER_HEIGHT;
+    RENDERBUFFER_RED_SIZE = GL_RENDERBUFFER_RED_SIZE;
+    RENDERBUFFER_GREEN_SIZE = GL_RENDERBUFFER_GREEN_SIZE;
+    RENDERBUFFER_BLUE_SIZE = GL_RENDERBUFFER_BLUE_SIZE;
+    RENDERBUFFER_ALPHA_SIZE = GL_RENDERBUFFER_ALPHA_SIZE;
+    RENDERBUFFER_DEPTH_SIZE = GL_RENDERBUFFER_DEPTH_SIZE;
+    RENDERBUFFER_STENCIL_SIZE = GL_RENDERBUFFER_STENCIL_SIZE;
+    RENDERBUFFER_INTERNAL_FORMAT = GL_RENDERBUFFER_INTERNAL_FORMAT;
 
-    MULTISAMPLE    = GL13.GL_MULTISAMPLE;
-//    POINT_SMOOTH   = GL11.GL_POINT_SMOOTH;
-    LINE_SMOOTH    = GL11.GL_LINE_SMOOTH;
-    POLYGON_SMOOTH = GL11.GL_POLYGON_SMOOTH;
+    MULTISAMPLE = GL_MULTISAMPLE;
+    LINE_SMOOTH = GL_LINE_SMOOTH;
+    POLYGON_SMOOTH = GL_POLYGON_SMOOTH;
+
+    SYNC_GPU_COMMANDS_COMPLETE = GL_SYNC_GPU_COMMANDS_COMPLETE;
+    ALREADY_SIGNALED = GL_ALREADY_SIGNALED;
+    CONDITION_SATISFIED = GL_CONDITION_SATISFIED;
   }
 
   ///////////////////////////////////////////////////////////
@@ -822,17 +759,17 @@ public class PLWJGL extends PGL {
 
   @Override
   public void flush() {
-    GL11.glFlush();
+    glFlush();
   }
 
   @Override
   public void finish() {
-    GL11.glFinish();
+    glFinish();
   }
 
   @Override
   public void hint(int target, int hint) {
-    GL11.glHint(target, hint);
+    glHint(target, hint);
   }
 
   ///////////////////////////////////////////////////////////
@@ -842,24 +779,26 @@ public class PLWJGL extends PGL {
   @Override
   public void enable(int value) {
     if (-1 < value) {
-      GL11.glEnable(value);
+      glEnable(value);
     }
   }
 
   @Override
   public void disable(int value) {
     if (-1 < value) {
-      GL11.glDisable(value);
+      glDisable(value);
     }
   }
 
   @Override
   public void getBooleanv(int value, IntBuffer data) {
+    // TODO: needs change to ByteBuffer, should have a variant which returns
+    //       a single boolean via 'glGetBoolean(int pname)'
     if (-1 < value) {
       if (byteBuffer.capacity() < data.capacity()) {
         byteBuffer = allocateDirectByteBuffer(data.capacity());
       }
-      GL11.glGetBooleanv(value, byteBuffer);
+      glGetBooleanv(value, byteBuffer);
       for (int i = 0; i < data.capacity(); i++) {
         data.put(i, byteBuffer.get(i));
       }
@@ -870,8 +809,10 @@ public class PLWJGL extends PGL {
 
   @Override
   public void getIntegerv(int value, IntBuffer data) {
+    // TODO: should have variant which returns a single int via
+    //       'glGetInteger(int pname)'
     if (-1 < value) {
-      GL11.glGetIntegerv(value, data);
+      glGetIntegerv(value, data);
     } else {
       fillIntBuffer(data, 0, data.capacity() - 1, 0);
     }
@@ -879,8 +820,10 @@ public class PLWJGL extends PGL {
 
   @Override
   public void getFloatv(int value, FloatBuffer data) {
+    // TODO: should have variant which returns a single float via
+    //       'glGetFloat(int pname)'
     if (-1 < value) {
-      GL11.glGetFloatv(value, data);
+      glGetFloatv(value, data);
     } else {
       fillFloatBuffer(data, 0, data.capacity() - 1, 0);
     }
@@ -888,12 +831,12 @@ public class PLWJGL extends PGL {
 
   @Override
   public boolean isEnabled(int value) {
-    return GL11.glIsEnabled(value);
+    return glIsEnabled(value);
   }
 
   @Override
   public String getString(int name) {
-    return GL11.glGetString(name);
+    return glGetString(name);
   }
 
   ///////////////////////////////////////////////////////////
@@ -902,12 +845,23 @@ public class PLWJGL extends PGL {
 
   @Override
   public int getError() {
-    return GL11.glGetError();
+    return glGetError();
   }
 
   @Override
   public String errorString(int err) {
-    return PGLU.gluErrorString(err);
+    switch (err) {
+    case 0: return "no error";
+    case 1280: return "invalid enumerant";
+    case 1281: return "invalid value";
+    case 1282: return "invalid operation";
+    case 1283: return "stack overflow";
+    case 1284: return "stack underflow";
+    case 1285: return "out of memory";
+    case 1286: return "invalid framebuffer operation";
+    case 32817: return "table too large";
+    default: return PGLU.gluErrorString(err);
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -916,60 +870,76 @@ public class PLWJGL extends PGL {
 
   @Override
   public void genBuffers(int n, IntBuffer buffers) {
-    GL15.glGenBuffers(buffers);
+    buffers.limit(n); // TODO: caller should set the position and the limit
+    glGenBuffers(buffers);
+    buffers.limit(buffers.capacity());
   }
 
   @Override
   public void deleteBuffers(int n, IntBuffer buffers) {
-    GL15.glDeleteBuffers(buffers);
+    buffers.limit(n); // TODO: caller should set the position and the limit
+    glDeleteBuffers(buffers);
+    buffers.limit(buffers.capacity());
   }
 
   @Override
   public void bindBuffer(int target, int buffer) {
-    GL15.glBindBuffer(target, buffer);
+    glBindBuffer(target, buffer);
   }
 
   @Override
   public void bufferData(int target, int size, Buffer data, int usage) {
+    // TODO: caller should set the position and the limit
+    // TODO: This needs overloads for each buffer type
     if (data == null) {
-      FloatBuffer empty = BufferUtils.createFloatBuffer(size);
-      GL15.glBufferData(target, empty, usage);
+      glBufferData(target, size, usage);
     } else {
-      if (data instanceof ByteBuffer) {
-        GL15.glBufferData(target, (ByteBuffer)data, usage);
-      } else if (data instanceof ShortBuffer) {
-        GL15.glBufferData(target, (ShortBuffer)data, usage);
+      if (data instanceof FloatBuffer) {
+        data.limit(data.position() + size / Float.BYTES);
+        glBufferData(target, (FloatBuffer) data, usage);
       } else if (data instanceof IntBuffer) {
-        GL15.glBufferData(target, (IntBuffer)data, usage);
-      } else if (data instanceof FloatBuffer) {
-        GL15.glBufferData(target, (FloatBuffer)data, usage);
+        data.limit(data.position() + size / Integer.BYTES);
+        glBufferData(target, (IntBuffer) data, usage);
+      } else if (data instanceof ByteBuffer) {
+        data.limit(data.position() + size);
+        glBufferData(target, (ByteBuffer) data, usage);
+      } else if (data instanceof ShortBuffer) {
+        data.limit(data.position() + size / Short.BYTES);
+        glBufferData(target, (ShortBuffer) data, usage);
       }
+      data.limit(data.capacity());
     }
   }
 
   @Override
   public void bufferSubData(int target, int offset, int size, Buffer data) {
-    if (data instanceof ByteBuffer) {
-      GL15.glBufferSubData(target, offset, (ByteBuffer)data);
-    } else if (data instanceof ShortBuffer) {
-      GL15.glBufferSubData(target, offset, (ShortBuffer)data);
+    // TODO: caller should set the position and the limit
+    // TODO: This needs overloads for each buffer type
+    if (data instanceof FloatBuffer) {
+      data.limit(data.position() + size / Float.BYTES);
+      glBufferSubData(target, offset, (FloatBuffer) data);
     } else if (data instanceof IntBuffer) {
-      GL15.glBufferSubData(target, offset, (IntBuffer)data);
-    } else if (data instanceof FloatBuffer) {
-      GL15.glBufferSubData(target, offset, (FloatBuffer)data);
+      data.limit(data.position() + size / Integer.BYTES);
+      glBufferSubData(target, offset, (IntBuffer) data);
+    } else if (data instanceof ByteBuffer) {
+      data.limit(data.position() + size);
+      glBufferSubData(target, offset, (ByteBuffer) data);
+    } else if (data instanceof ShortBuffer) {
+      data.limit(data.position() + size / Short.BYTES);
+      glBufferSubData(target, offset, (ShortBuffer) data);
     }
+    data.limit(data.capacity());
   }
 
   @Override
   public void isBuffer(int buffer) {
-    GL15.glIsBuffer(buffer);
+    glIsBuffer(buffer);
   }
 
   @Override
   public void getBufferParameteriv(int target, int value, IntBuffer data) {
     if (-1 < value) {
-      int res = GL15.glGetBufferParameteri(target, value);
-      data.put(0, res);
+      glGetBufferParameteriv(target, value, data);
     } else {
       data.put(0, 0);
     }
@@ -977,17 +947,39 @@ public class PLWJGL extends PGL {
 
   @Override
   public ByteBuffer mapBuffer(int target, int access) {
-    return GL15.glMapBuffer(target, access, null);
+    return glMapBuffer(target, access);
   }
 
   @Override
   public ByteBuffer mapBufferRange(int target, int offset, int length, int access) {
-    return GL30.glMapBufferRange(target, offset, length, access, null);
+    return ARBMapBufferRange.glMapBufferRange(target, offset, length, access);
   }
 
   @Override
   public void unmapBuffer(int target) {
-    GL15.glUnmapBuffer(target);
+    glUnmapBuffer(target);
+  }
+
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  // Sync
+
+  @Override
+  public long fenceSync(int condition, int flags) {
+    return glFenceSync(condition, flags);
+  }
+
+
+  @Override
+  public void deleteSync(long sync) {
+    glDeleteSync(sync);
+  }
+
+
+  @Override
+  public int clientWaitSync(long sync, int flags, long timeout) {
+    return glClientWaitSync(sync, flags, timeout);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -996,14 +988,18 @@ public class PLWJGL extends PGL {
 
   @Override
   public void depthRangef(float n, float f) {
-    GL11.glDepthRange(n, f);
+    glDepthRange(n, f);
   }
 
   @Override
   public void viewport(int x, int y, int w, int h) {
-//    float f = Display.getPixelScaleFactor();
-    float f = 1;
-    GL11.glViewport((int)(f * x), (int)(f * y), (int)f * w, (int)(f * h));
+    float f = getPixelScale();
+    viewportImpl((int)(f*x), (int)(f*y), (int)(f*w), (int)(f*h));
+  }
+
+  @Override
+  protected void viewportImpl(int x, int y, int w, int h) {
+    glViewport(x, y, w, h);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -1012,7 +1008,15 @@ public class PLWJGL extends PGL {
 
   @Override
   protected void readPixelsImpl(int x, int y, int width, int height, int format, int type, Buffer buffer) {
-    GL11.glReadPixels(x, y, width, height, format, type, (IntBuffer)buffer);
+    // TODO: needs overloads for different buffers
+    glReadPixels(x, y, width, height, format, type, (IntBuffer)buffer);
+  }
+
+  @Override
+  protected void readPixelsImpl(int x, int y, int width, int height, int format,
+                                int type, long offset) {
+    // TODO: used by async pixel reader, test if it works
+    glReadPixels(x, y, width, height, format, type, offset);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -1021,77 +1025,77 @@ public class PLWJGL extends PGL {
 
   @Override
   public void vertexAttrib1f(int index, float value) {
-    GL20.glVertexAttrib1f(index, value);
+    glVertexAttrib1f(index, value);
   }
 
   @Override
   public void vertexAttrib2f(int index, float value0, float value1) {
-    GL20.glVertexAttrib2f(index, value0, value1);
+    glVertexAttrib2f(index, value0, value1);
   }
 
   @Override
   public void vertexAttrib3f(int index, float value0, float value1, float value2) {
-    GL20.glVertexAttrib3f(index, value0, value1, value2);
+    glVertexAttrib3f(index, value0, value1, value2);
   }
 
   @Override
   public void vertexAttrib4f(int index, float value0, float value1, float value2, float value3) {
-    GL20.glVertexAttrib4f(index, value0, value1, value2, value3);
+    glVertexAttrib4f(index, value0, value1, value2, value3);
   }
 
   @Override
   public void vertexAttrib1fv(int index, FloatBuffer values) {
-    GL20.glVertexAttrib1f(index, values.get());
+    glVertexAttrib1fv(index, values);
   }
 
   @Override
   public void vertexAttrib2fv(int index, FloatBuffer values) {
-    GL20.glVertexAttrib2f(index, values.get(), values.get());
+    glVertexAttrib2fv(index, values);
   }
 
   @Override
   public void vertexAttrib3fv(int index, FloatBuffer values) {
-    GL20.glVertexAttrib3f(index, values.get(), values.get(), values.get());
+    glVertexAttrib3fv(index, values);
   }
 
   @Override
   public void vertexAttrib4fv(int index, FloatBuffer values) {
-    GL20.glVertexAttrib4f(index, values.get(), values.get(), values.get(), values.get());
+    glVertexAttrib4fv(index, values);
   }
 
   @Override
   public void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, int offset) {
-    GL20.glVertexAttribPointer(index, size, type, normalized, stride, offset);
+    glVertexAttribPointer(index, size, type, normalized, stride, offset);
   }
-  
+
   @Override
   public void enableVertexAttribArray(int index) {
-    GL20.glEnableVertexAttribArray(index);
+    glEnableVertexAttribArray(index);
   }
 
   @Override
   public void disableVertexAttribArray(int index) {
-    GL20.glDisableVertexAttribArray(index);
+    glDisableVertexAttribArray(index);
   }
 
   @Override
-  public void drawArrays(int mode, int first, int count) {
-    GL11.glDrawArrays(mode, first, count);
+  public void drawArraysImpl(int mode, int first, int count) {
+    glDrawArrays(mode, first, count);
   }
 
   @Override
-  public void drawElements(int mode, int count, int type, int offset) {
-    GL11.glDrawElements(mode, count, type, offset);
+  public void drawElementsImpl(int mode, int count, int type, int offset) {
+    glDrawElements(mode, count, type, offset);
   }
 
 //  @Override
 //  public void drawElements(int mode, int count, int type, Buffer indices) {
 //    if (type == UNSIGNED_INT) {
-//      GL11.glDrawElements(mode, (IntBuffer)indices);
+//      glDrawElements(mode, (IntBuffer)indices);
 //    } else if (type == UNSIGNED_BYTE) {
-//      GL11.glDrawElements(mode, (ByteBuffer)indices);
+//      glDrawElements(mode, (ByteBuffer)indices);
 //    } else if (type == UNSIGNED_SHORT) {
-//      GL11.glDrawElements(mode, (ShortBuffer)indices);
+//      glDrawElements(mode, (ShortBuffer)indices);
 //    }
 //  }
 
@@ -1101,22 +1105,22 @@ public class PLWJGL extends PGL {
 
   @Override
   public void lineWidth(float width) {
-    GL11.glLineWidth(width);
+    glLineWidth(width);
   }
 
   @Override
   public void frontFace(int dir) {
-    GL11.glFrontFace(dir);
+    glFrontFace(dir);
   }
 
   @Override
   public void cullFace(int mode) {
-    GL11.glCullFace(mode);
+    glCullFace(mode);
   }
 
   @Override
   public void polygonOffset(float factor, float units) {
-    GL11.glPolygonOffset(factor, units);
+    glPolygonOffset(factor, units);
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -1125,7 +1129,7 @@ public class PLWJGL extends PGL {
 
   @Override
   public void pixelStorei(int pname, int param) {
-    GL11.glPixelStorei(pname, param);
+    glPixelStorei(pname, param);
   }
 
   ///////////////////////////////////////////////////////////
@@ -1134,92 +1138,95 @@ public class PLWJGL extends PGL {
 
   @Override
   public void texImage2D(int target, int level, int internalFormat, int width, int height, int border, int format, int type, Buffer data) {
-    GL11.glTexImage2D(target, level, internalFormat, width, height, border, format, type, (IntBuffer)data);
+    // TODO: needs change to IntBuffer
+    glTexImage2D(target, level, internalFormat, width, height, border, format, type, (IntBuffer)data);
   }
 
   @Override
   public void copyTexImage2D(int target, int level, int internalFormat, int x, int y, int width, int height, int border) {
-    GL11.glCopyTexImage2D(target, level, internalFormat, x, y, width, height, border);
+    glCopyTexImage2D(target, level, internalFormat, x, y, width, height, border);
   }
 
   @Override
   public void texSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, Buffer data) {
-    GL11.glTexSubImage2D(target, level, xOffset, yOffset, width, height, format, type, (IntBuffer)data);
+    // TODO: needs change to IntBuffer
+    glTexSubImage2D(target, level, xOffset, yOffset, width, height, format, type, (IntBuffer)data);
   }
 
   @Override
   public void copyTexSubImage2D(int target, int level, int xOffset, int yOffset, int x, int y, int width, int height) {
-    GL11.glCopyTexSubImage2D(target, level, x, y, xOffset, yOffset, width, height);
+    glCopyTexSubImage2D(target, level, x, y, xOffset, yOffset, width, height);
   }
 
   @Override
   public void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border, int imageSize, Buffer data) {
-    GL13.glCompressedTexImage2D(target, level, internalFormat, width, height, border, (ByteBuffer)data);
+    // TODO: needs change to ByteBuffer
+    glCompressedTexImage2D(target, level, internalFormat, width, height, border, (ByteBuffer)data);
   }
 
   @Override
   public void compressedTexSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int imageSize, Buffer data) {
-    GL13.glCompressedTexSubImage2D(target, level, xOffset, yOffset, width, height, format, (ByteBuffer)data);
+    glCompressedTexSubImage2D(target, level, xOffset, yOffset, width, height, format, (ByteBuffer)data);
   }
 
   @Override
   public void texParameteri(int target, int pname, int param) {
-    GL11.glTexParameteri(target, pname, param);
+    glTexParameteri(target, pname, param);
   }
 
   @Override
   public void texParameterf(int target, int pname, float param) {
-    GL11.glTexParameterf(target, pname, param);
+    glTexParameterf(target, pname, param);
   }
 
   @Override
   public void texParameteriv(int target, int pname, IntBuffer params) {
-    GL11.glTexParameteri(target, pname, params.get());
+    glTexParameteriv(target, pname, params);
   }
 
   @Override
   public void texParameterfv(int target, int pname, FloatBuffer params) {
-    GL11.glTexParameterf(target, pname, params.get());
+    glTexParameterfv(target, pname, params);
   }
 
   @Override
   public void generateMipmap(int target) {
-    GL30.glGenerateMipmap(target);
+    glGenerateMipmap(target);
   }
 
   @Override
   public void genTextures(int n, IntBuffer textures) {
-    GL11.glGenTextures(textures);
+    glGenTextures(textures);
   }
 
   @Override
   public void deleteTextures(int n, IntBuffer textures) {
-    GL11.glDeleteTextures(textures);
+    glDeleteTextures(textures);
   }
 
   @Override
   public void getTexParameteriv(int target, int pname, IntBuffer params) {
-    GL11.glGetTexParameteriv(target, pname, params);
+    glGetTexParameteriv(target, pname, params);
   }
 
   @Override
   public void getTexParameterfv(int target, int pname, FloatBuffer params) {
-    GL11.glGetTexParameterfv(target, pname, params);
+    glGetTexParameterfv(target, pname, params);
   }
 
   @Override
   public boolean isTexture(int texture) {
-    return GL11.glIsTexture(texture);
+    return glIsTexture(texture);
   }
 
   @Override
   protected void activeTextureImpl(int texture) {
-    GL13.glActiveTexture(texture);
+    glActiveTexture(texture);
   }
 
   @Override
   protected void bindTextureImpl(int target, int texture) {
-    GL11.glBindTexture(target, texture);
+    glBindTexture(target, texture);
   }
 
   ///////////////////////////////////////////////////////////
@@ -1228,295 +1235,303 @@ public class PLWJGL extends PGL {
 
   @Override
   public int createShader(int type) {
-    return GL20.glCreateShader(type);
+    return glCreateShader(type);
   }
 
   @Override
   public void shaderSource(int shader, String source) {
-    GL20.glShaderSource(shader, source);
+    glShaderSource(shader, source);
   }
 
   @Override
   public void compileShader(int shader) {
-    GL20.glCompileShader(shader);
+    glCompileShader(shader);
   }
 
   @Override
   public void releaseShaderCompiler() {
-    throw new RuntimeException(String.format(MISSING_GLFUNC_ERROR, "glReleaseShaderCompiler()"));
+    glReleaseShaderCompiler();
   }
 
   @Override
   public void deleteShader(int shader) {
-    GL20.glDeleteShader(shader);
+    glDeleteShader(shader);
   }
 
   @Override
   public void shaderBinary(int count, IntBuffer shaders, int binaryFormat, Buffer binary, int length) {
-    throw new RuntimeException(String.format(MISSING_GLFUNC_ERROR, "glShaderBinary()"));
+    glShaderBinary(shaders, binaryFormat, (ByteBuffer) binary);
   }
 
   @Override
   public int createProgram() {
-    return GL20.glCreateProgram();
+    return glCreateProgram();
   }
 
   @Override
   public void attachShader(int program, int shader) {
-    GL20.glAttachShader(program, shader);
+    glAttachShader(program, shader);
   }
 
   @Override
   public void detachShader(int program, int shader) {
-    GL20.glDetachShader(program, shader);
+    glDetachShader(program, shader);
   }
 
   @Override
   public void linkProgram(int program) {
-    GL20.glLinkProgram(program);
+    glLinkProgram(program);
   }
 
   @Override
   public void useProgram(int program) {
-    GL20.glUseProgram(program);
+    glUseProgram(program);
   }
 
   @Override
   public void deleteProgram(int program) {
-    GL20.glDeleteProgram(program);
+    glDeleteProgram(program);
   }
 
   @Override
   public String getActiveAttrib(int program, int index, IntBuffer size, IntBuffer type) {
-//    IntBuffer typeTmp = BufferUtils.createIntBuffer(2);
-//    String name = GL20.glGetActiveAttrib(program, index, 256, typeTmp);
-//    size.put(typeTmp.get(0));
-//    type.put(typeTmp.get(1));
-//    return name;
-    return GL20.glGetActiveAttrib(program, index, size, type);
+    return glGetActiveAttrib(program, index, size, type);
   }
 
   @Override
   public int getAttribLocation(int program, String name) {
-    return GL20.glGetAttribLocation(program, name);
+    return glGetAttribLocation(program, name);
   }
 
   @Override
   public void bindAttribLocation(int program, int index, String name) {
-    GL20.glBindAttribLocation(program, index, name);
+    glBindAttribLocation(program, index, name);
   }
 
   @Override
   public int getUniformLocation(int program, String name) {
-    return GL20.glGetUniformLocation(program, name);
+    return glGetUniformLocation(program, name);
   }
 
   @Override
   public String getActiveUniform(int program, int index, IntBuffer size, IntBuffer type) {
 //    IntBuffer typeTmp = BufferUtils.createIntBuffer(2);
-//    String name = GL20.glGetActiveUniform(program, index, 256, typeTmp);
+//    String name = glGetActiveUniform(program, index, 256, typeTmp);
 //    type.put(typeTmp.get(0));
 //    return name;
-    return GL20.glGetActiveUniform(program, index, size, type);
+    return glGetActiveUniform(program, index, size, type);
   }
 
   @Override
   public void uniform1i(int location, int value) {
-    GL20.glUniform1i(location, value);
+    glUniform1i(location, value);
   }
 
   @Override
   public void uniform2i(int location, int value0, int value1) {
-    GL20.glUniform2i(location, value0, value1);
+    glUniform2i(location, value0, value1);
   }
 
   @Override
   public void uniform3i(int location, int value0, int value1, int value2) {
-    GL20.glUniform3i(location, value0, value1, value2);
+    glUniform3i(location, value0, value1, value2);
   }
 
   @Override
   public void uniform4i(int location, int value0, int value1, int value2, int value3) {
-    GL20.glUniform4i(location, value0, value1, value2, value3);
+    glUniform4i(location, value0, value1, value2, value3);
   }
 
   @Override
   public void uniform1f(int location, float value) {
-    GL20.glUniform1f(location, value);
+    glUniform1f(location, value);
   }
 
   @Override
   public void uniform2f(int location, float value0, float value1) {
-    GL20.glUniform2f(location, value0, value1);
+    glUniform2f(location, value0, value1);
   }
 
   @Override
   public void uniform3f(int location, float value0, float value1, float value2) {
-    GL20.glUniform3f(location, value0, value1, value2);
+    glUniform3f(location, value0, value1, value2);
   }
 
   @Override
   public void uniform4f(int location, float value0, float value1, float value2, float value3) {
-    GL20.glUniform4f(location, value0, value1, value2, value3);
+    glUniform4f(location, value0, value1, value2, value3);
   }
 
   @Override
   public void uniform1iv(int location, int count, IntBuffer v) {
-    v.limit(count);
-    GL20.glUniform1iv(location, v);
-    v.clear();
+    v.limit(count); // TODO: caller should set the position and the limit
+    glUniform1iv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform2iv(int location, int count, IntBuffer v) {
-    v.limit(2 * count);
-    GL20.glUniform2iv(location, v);
-    v.clear();
+    v.limit(2*count); // TODO: caller should set the position and the limit
+    glUniform2iv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform3iv(int location, int count, IntBuffer v) {
-    v.limit(3 * count);
-    GL20.glUniform3iv(location, v);
-    v.clear();
+    v.limit(3*count); // TODO: caller should set the position and the limit
+    glUniform3iv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform4iv(int location, int count, IntBuffer v) {
-    v.limit(4 * count);
-    GL20.glUniform4iv(location, v);
-    v.clear();
+    v.limit(4*count); // TODO: caller should set the position and the limit
+    glUniform4iv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform1fv(int location, int count, FloatBuffer v) {
-    v.limit(count);
-    GL20.glUniform1fv(location, v);
-    v.clear();
+    v.limit(count); // TODO: caller should set the position and the limit
+    glUniform1fv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform2fv(int location, int count, FloatBuffer v) {
-    v.limit(2 * count);
-    GL20.glUniform2fv(location, v);
-    v.clear();
+    v.limit(2*count); // TODO: caller should set the position and the limit
+    glUniform2fv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform3fv(int location, int count, FloatBuffer v) {
-    v.limit(3 * count);
-    GL20.glUniform3fv(location, v);
-    v.clear();
+    v.limit(3*count); // TODO: caller should set the position and the limit
+    glUniform3fv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniform4fv(int location, int count, FloatBuffer v) {
-    v.limit(4 * count);
-    GL20.glUniform4fv(location, v);
-    v.clear();
+    v.limit(4*count); // TODO: caller should set the position and the limit
+    glUniform4fv(location, v);
+    v.limit(v.capacity());
   }
 
   @Override
   public void uniformMatrix2fv(int location, int count, boolean transpose, FloatBuffer mat) {
-    mat.limit(4);
-    GL20.glUniformMatrix2fv(location, transpose, mat);
-    mat.clear();
+    mat.limit(4*count); // TODO: caller should set the position and the limit
+    glUniformMatrix2fv(location, transpose, mat);
+    mat.limit(mat.capacity());
   }
 
   @Override
   public void uniformMatrix3fv(int location, int count, boolean transpose, FloatBuffer mat) {
-    mat.limit(9);
-    GL20.glUniformMatrix3fv(location, transpose, mat);
-    mat.clear();
+    mat.limit(9*count); // TODO: caller should set the position and the limit
+    glUniformMatrix3fv(location, transpose, mat);
+    mat.limit(mat.capacity());
   }
 
   @Override
   public void uniformMatrix4fv(int location, int count, boolean transpose, FloatBuffer mat) {
-    mat.limit(16);
-    GL20.glUniformMatrix4fv(location, transpose, mat);
-    mat.clear();
+    mat.limit(16*count); // TODO: caller should set the position and the limit
+    glUniformMatrix4fv(location, transpose, mat);
+    mat.limit(mat.capacity());
   }
 
   @Override
   public void validateProgram(int program) {
-    GL20.glValidateProgram(program);
+    glValidateProgram(program);
   }
 
   @Override
   public boolean isShader(int shader) {
-    return GL20.glIsShader(shader);
+    return glIsShader(shader);
   }
 
   @Override
   public void getShaderiv(int shader, int pname, IntBuffer params) {
-    GL20.glGetShaderiv(shader, pname, params);
+    glGetShaderiv(shader, pname, params);
   }
 
   @Override
   public void getAttachedShaders(int program, int maxCount, IntBuffer count, IntBuffer shaders) {
-    GL20.glGetAttachedShaders(program, count, shaders);
+    glGetAttachedShaders(program, count, shaders);
   }
 
   @Override
   public String getShaderInfoLog(int shader) {
-    int len = GL20.glGetShaderi(shader, GL20.GL_INFO_LOG_LENGTH);
-    return GL20.glGetShaderInfoLog(shader, len);
+    int len = glGetShaderi(shader, GL_INFO_LOG_LENGTH);
+    return glGetShaderInfoLog(shader, len);
   }
 
   @Override
   public String getShaderSource(int shader) {
-    int len = GL20.glGetShaderi(shader, GL20.GL_SHADER_SOURCE_LENGTH);
-    return GL20.glGetShaderSource(shader, len);
+    int len = glGetShaderi(shader, GL_SHADER_SOURCE_LENGTH);
+    return glGetShaderSource(shader, len);
   }
 
   @Override
   public void getShaderPrecisionFormat(int shaderType, int precisionType, IntBuffer range, IntBuffer precision) {
-    throw new RuntimeException(String.format(MISSING_GLFUNC_ERROR, "glGetShaderPrecisionFormat()"));
+    glGetShaderPrecisionFormat(shaderType, precisionType, range, precision);
   }
 
   @Override
   public void getVertexAttribfv(int index, int pname, FloatBuffer params) {
-    GL20.glGetVertexAttribfv(index, pname, params);
+    glGetVertexAttribfv(index, pname, params);
   }
 
   @Override
   public void getVertexAttribiv(int index, int pname, IntBuffer params) {
-    GL20.glGetVertexAttribiv(index, pname, params);
+    glGetVertexAttribiv(index, pname, params);
   }
 
   @Override
   public void getVertexAttribPointerv(int index, int pname, ByteBuffer data) {
-//    int len = data.capacity();
-//    ByteBuffer res = GL20.glGetVertexAttribPointer(index, pname, len);
-//    data.put(res);
-//    GL20.glGetVertexAttribPointerv(index, pname, data);
-    throw new RuntimeException(String.format(MISSING_GLFUNC_ERROR, "glGetVertexAttribPointerv()"));
+    /**
+     * Seems to apply only to this case:
+     * If a non-zero named buffer object was bound to the GL_ARRAY_BUFFER target
+     * (see glBindBuffer) when the desired pointer was previously specified, the
+     * pointer returned is a byte offset into the buffer object's data store.
+     */
+    try (MemoryStack stack = stackPush()) {
+      IntBuffer buf = stack.mallocInt(1);
+      glGetIntegerv(GL_ARRAY_BUFFER_BINDING, buf);
+      if (buf.get(0) == 0) {
+        throw new RuntimeException("no buffer is bound to GL_ARRAY_BUFFER");
+      }
+      PointerBuffer pb = stack.mallocPointer(data.remaining());
+      glGetVertexAttribPointerv(index, pname, pb);
+      // TODO: check this
+      ByteBuffer bb = pb.getByteBuffer(pb.position(), pb.limit());
+      data.put(bb);
+    }
   }
 
   @Override
   public void getUniformfv(int program, int location, FloatBuffer params) {
-    GL20.glGetUniformfv(program, location, params);
+    glGetUniformfv(program, location, params);
   }
 
   @Override
   public void getUniformiv(int program, int location, IntBuffer params) {
-    GL20.glGetUniformiv(program, location, params);
+    glGetUniformiv(program, location, params);
   }
 
   @Override
   public boolean isProgram(int program) {
-    return GL20.glIsProgram(program);
+    return glIsProgram(program);
   }
 
   @Override
   public void getProgramiv(int program, int pname, IntBuffer params) {
-    GL20.glGetProgramiv(program, pname, params);
+    glGetProgramiv(program, pname, params);
   }
 
   @Override
   public String getProgramInfoLog(int program) {
-    int len = GL20.glGetProgrami(program, GL20.GL_INFO_LOG_LENGTH);
-    return GL20.glGetProgramInfoLog(program, len);
+    int len = glGetProgrami(program, GL_INFO_LOG_LENGTH);
+    return glGetProgramInfoLog(program, len);
   }
 
   ///////////////////////////////////////////////////////////
@@ -1525,70 +1540,64 @@ public class PLWJGL extends PGL {
 
   @Override
   public void scissor(int x, int y, int w, int h) {
-//    float f = Display.getPixelScaleFactor();
-    float f = 1;
-    GL11.glScissor((int)(f * x), (int)(f * y), (int)f * w, (int)(f * h));
+    float f = graphics.pixelDensity;
+    glScissor((int)(f * x), (int)(f * y), (int)f * w, (int)(f * h));
   }
 
   @Override
   public void sampleCoverage(float value, boolean invert) {
-    GL13.glSampleCoverage(value, invert);
+    glSampleCoverage(value, invert);
   }
 
   @Override
   public void stencilFunc(int func, int ref, int mask) {
-    GL11.glStencilFunc(func, ref, mask);
+    glStencilFunc(func, ref, mask);
   }
 
   @Override
   public void stencilFuncSeparate(int face, int func, int ref, int mask) {
-    GL20.glStencilFuncSeparate(face, func, ref, mask);
+    glStencilFuncSeparate(face, func, ref, mask);
   }
 
   @Override
   public void stencilOp(int sfail, int dpfail, int dppass) {
-    GL11.glStencilOp(sfail, dpfail, dppass);
+    glStencilOp(sfail, dpfail, dppass);
   }
 
   @Override
   public void stencilOpSeparate(int face, int sfail, int dpfail, int dppass) {
-    GL20.glStencilOpSeparate(face, sfail, dpfail, dppass);
+    glStencilOpSeparate(face, sfail, dpfail, dppass);
   }
 
   @Override
   public void depthFunc(int func) {
-    GL11.glDepthFunc(func);
+    glDepthFunc(func);
   }
 
   @Override
   public void blendEquation(int mode) {
-    GL14.glBlendEquation(mode);
+    glBlendEquation(mode);
   }
 
   @Override
   public void blendEquationSeparate(int modeRGB, int modeAlpha) {
-    GL20.glBlendEquationSeparate(modeRGB, modeAlpha);
+    glBlendEquationSeparate(modeRGB, modeAlpha);
   }
 
   @Override
   public void blendFunc(int src, int dst) {
-    GL11.glBlendFunc(src, dst);
+    glBlendFunc(src, dst);
   }
 
   @Override
   public void blendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
-    GL14.glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+    glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
   }
 
   @Override
   public void blendColor(float red, float green, float blue, float alpha) {
-    GL14.glBlendColor(red, green, blue, alpha);
+    glBlendColor(red, green, blue, alpha);
   }
-
-//  @Override
-//  public void alphaFunc(int func, float ref) {
-//    GL11.glAlphaFunc(func, ref);
-//  }
 
   ///////////////////////////////////////////////////////////
 
@@ -1596,42 +1605,42 @@ public class PLWJGL extends PGL {
 
   @Override
   public void colorMask(boolean r, boolean g, boolean b, boolean a) {
-    GL11.glColorMask(r, g, b, a);
+    glColorMask(r, g, b, a);
   }
 
   @Override
   public void depthMask(boolean mask) {
-    GL11.glDepthMask(mask);
+    glDepthMask(mask);
   }
 
   @Override
   public void stencilMask(int mask) {
-    GL11.glStencilMask(mask);
+    glStencilMask(mask);
   }
 
   @Override
   public void stencilMaskSeparate(int face, int mask) {
-    GL20.glStencilMaskSeparate(face, mask);
-  }
-
-  @Override
-  public void clear(int buf) {
-    GL11.glClear(buf);
+    glStencilMaskSeparate(face, mask);
   }
 
   @Override
   public void clearColor(float r, float g, float b, float a) {
-    GL11.glClearColor(r, g, b, a);
+    glClearColor(r, g, b, a);
   }
 
   @Override
   public void clearDepth(float d) {
-    GL11.glClearDepth(d);
+    glClearDepth(d);
   }
 
   @Override
   public void clearStencil(int s) {
-    GL11.glClearStencil(s);
+    glClearStencil(s);
+  }
+
+  @Override
+  public void clear(int buf) {
+    glClear(buf);
   }
 
   ///////////////////////////////////////////////////////////
@@ -1640,99 +1649,104 @@ public class PLWJGL extends PGL {
 
   @Override
   protected void bindFramebufferImpl(int target, int framebuffer) {
-    GL30.glBindFramebuffer(target, framebuffer);
+    glBindFramebuffer(target, framebuffer);
   }
 
   @Override
   public void deleteFramebuffers(int n, IntBuffer framebuffers) {
-    GL30.glDeleteFramebuffers(framebuffers);
+    // TODO: have overload for a single framebuffer
+    //       'glDeleteFramebuffers(int framebuffer)'
+    glDeleteFramebuffers(framebuffers);
   }
 
   @Override
   public void genFramebuffers(int n, IntBuffer framebuffers) {
-    GL30.glGenFramebuffers(framebuffers);
+    glGenFramebuffers(framebuffers);
   }
 
   @Override
   public void bindRenderbuffer(int target, int renderbuffer) {
-    GL30.glBindRenderbuffer(target, renderbuffer);
+    glBindRenderbuffer(target, renderbuffer);
   }
 
   @Override
   public void deleteRenderbuffers(int n, IntBuffer renderbuffers) {
-    GL30.glDeleteRenderbuffers(renderbuffers);
+    // TODO: have overload for a single renderbuffer
+    //       'glDeleteRenderbuffers(int renderbuffer)'
+    glDeleteRenderbuffers(renderbuffers);
   }
 
   @Override
   public void genRenderbuffers(int n, IntBuffer renderbuffers) {
-    GL30.glGenRenderbuffers(renderbuffers);
+    glGenRenderbuffers(renderbuffers);
   }
 
   @Override
   public void renderbufferStorage(int target, int internalFormat, int width, int height) {
-    GL30.glRenderbufferStorage(target, internalFormat, width, height);
+    glRenderbufferStorage(target, internalFormat, width, height);
   }
 
   @Override
   public void framebufferRenderbuffer(int target, int attachment, int rendbuferfTarget, int renderbuffer) {
-    GL30.glFramebufferRenderbuffer(target, attachment, rendbuferfTarget, renderbuffer);
+    glFramebufferRenderbuffer(target, attachment, rendbuferfTarget, renderbuffer);
   }
 
   @Override
   public void framebufferTexture2D(int target, int attachment, int texTarget, int texture, int level) {
-    GL30.glFramebufferTexture2D(target, attachment, texTarget, texture, level);
+    glFramebufferTexture2D(target, attachment, texTarget, texture, level);
   }
 
   @Override
   public int checkFramebufferStatus(int target) {
-    return GL30.glCheckFramebufferStatus(target);
+    return glCheckFramebufferStatus(target);
   }
 
   @Override
   public boolean isFramebuffer(int framebuffer) {
-    return GL30.glIsFramebuffer(framebuffer);
+    return glIsFramebuffer(framebuffer);
   }
 
   @Override
   public void getFramebufferAttachmentParameteriv(int target, int attachment, int pname, IntBuffer params) {
-    GL30.glGetFramebufferAttachmentParameteriv(target, attachment, pname, params);
+    glGetFramebufferAttachmentParameteriv(target, attachment, pname, params);
   }
 
   @Override
   public boolean isRenderbuffer(int renderbuffer) {
-    return GL30.glIsRenderbuffer(renderbuffer);
+    return glIsRenderbuffer(renderbuffer);
   }
 
   @Override
   public void getRenderbufferParameteriv(int target, int pname, IntBuffer params) {
-    GL30.glGetRenderbufferParameteriv(target, pname, params);
+    glGetRenderbufferParameteriv(target, pname, params);
   }
 
   @Override
   public void blitFramebuffer(int srcX0, int srcY0, int srcX1, int srcY1, int dstX0, int dstY0, int dstX1, int dstY1, int mask, int filter) {
-    GL30.glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+    glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
   }
 
   @Override
   public void renderbufferStorageMultisample(int target, int samples, int format, int width, int height) {
-    GL30.glRenderbufferStorageMultisample(target, samples, format, width, height);
+    glRenderbufferStorageMultisample(target, samples, format, width, height);
   }
 
   @Override
   public void readBuffer(int buf) {
-    GL11.glReadBuffer(buf);
+    glReadBuffer(buf);
   }
 
   @Override
   public void drawBuffer(int buf) {
-    GL11.glDrawBuffer(buf);
+    glDrawBuffer(buf);
   }
 
 
   @Override
   protected void getGL(PGL pgl) {
-    PLWJGL pjogl = (PLWJGL)pgl;
-    setThread(pjogl.glThread);
+    PLWJGL plwjgl = (PLWJGL)pgl;
+    setThread(plwjgl.glThread);
+    reqNumSamples = pgl.reqNumSamples;
   }
 
 
@@ -1743,47 +1757,57 @@ public class PLWJGL extends PGL {
 
 
   @Override
-  protected void setFrameRate(float fps) {}
+  protected void setFrameRate(float fps) {
+    sketch.getSurface().setFrameRate(fps);
+  }
 
 
   @Override
-  protected void initSurface(int antialias) {}
+  protected void initSurface(int antialias) {
+    // noop
+  }
 
 
   @Override
-  protected void reinitSurface() {}
+  protected void reinitSurface() {
+    // noop
+  }
 
 
   @Override
-  protected void registerListeners() {}
+  protected void registerListeners() {
+    // noop
+  }
 
 
   @Override
   protected int getDepthBits() {
-    intBuffer.rewind();
-    getIntegerv(DEPTH_BITS, intBuffer);
-    return intBuffer.get(0);
+    int frameBuffer = glGetInteger(GL_FRAMEBUFFER_BINDING);
+    // Bind default framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    int result = glGetFramebufferAttachmentParameteri(GL_FRAMEBUFFER, GL_DEPTH,
+                                                      GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE);
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    return result;
   }
 
 
   @Override
   protected int getStencilBits() {
-    intBuffer.rewind();
-    getIntegerv(STENCIL_BITS, intBuffer);
-    return intBuffer.get(0);
+    int frameBuffer = glGetInteger(GL_FRAMEBUFFER_BINDING);
+    // Bind default framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    int result = glGetFramebufferAttachmentParameteri(GL_FRAMEBUFFER, GL_STENCIL,
+                                                      GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE);
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    return result;
   }
 
 
   @Override
   protected float getPixelScale() {
-    PSurface surf = sketch.getSurface();
-    if (surf == null) {
-      return graphics.pixelDensity;
-    } else if (surf instanceof PSurfaceLWJGL) {
-      return ((PSurfaceLWJGL)surf).getPixelScale();
-    } else {
-      throw new RuntimeException("Renderer cannot find a LWJGL surface");
-    }
+    // TODO: Fractional? Make this int to fit with how PApplet does it
+    return graphics.pixelDensity;
   }
 
 
@@ -1794,15 +1818,21 @@ public class PLWJGL extends PGL {
 
 
   @Override
-  protected void requestFocus() { }
+  protected void requestFocus() {
+    // TODO: getSurface().requestFocus()
+  }
 
 
   @Override
-  protected void requestDraw() { }
+  protected void requestDraw() {
+    // noop
+  }
 
 
   @Override
-  protected void swapBuffers() { }
+  protected void swapBuffers() {
+    // TODO: getSuface().swapBuffers();
+  }
 
 
   @Override
@@ -1816,20 +1846,45 @@ public class PLWJGL extends PGL {
 
   @Override
   protected int getGLSLVersion() {
-    String version = GL11.glGetString(VERSION);
-    if (version.equals("2.0")) return 110;
-    else if (version.equals("2.1")) return 120;
-    else if (version.equals("3.0")) return 130;
-    else if (version.equals("3.1")) return 140;
-    else if (version.equals("3.2")) return 150;
-    else {
-      // For all versions of OpenGL 3.3 and above, the corresponding GLSL version matches the OpenGL version. So GL 4.1 uses GLSL 4.10.
-      String[] parts = version.split(".");
-      if (parts.length == 2) {
-        int major = PApplet.parseInt(parts[0], 0);
-        int minor = PApplet.parseInt(parts[1], 1);
-        return major * 100 + minor;
-      } 
+    // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glGetString.xhtml
+    //
+    // > The GL_VERSION and GL_SHADING_LANGUAGE_VERSION strings begin with
+    // > a version number. The version number uses one of these forms:
+    // > major_number.minor_number major_number.minor_number.release_number
+    // > Vendor-specific information may follow the version number. Its format
+    // > depends on the implementation, but a space always separates the version
+    // > number and the vendor-specific information.
+    //
+    // Example output desktop OpenGL:
+    // 4.50 - Build 24.20.100.6286
+    //
+    // Example output OpenGL ES (we shouldn't get ES if we don't request it though):
+    // OpenGL ES GLSL ES N.M vendor-specific information
+    //
+    // [jv 2018-10-08]
+
+    String versionVendorInfoString = glGetString(SHADING_LANGUAGE_VERSION);
+    if (versionVendorInfoString == null) {
+      return 0;
+    }
+
+    String es2prefix = "OpenGL ES GLSL ES ";
+    if (versionVendorInfoString.startsWith(es2prefix)) {
+      versionVendorInfoString = versionVendorInfoString.substring(es2prefix.length());
+    }
+
+    String versionString;
+    {
+      int spaceIndex = versionVendorInfoString.indexOf(' ');
+      int end = spaceIndex >= 0 ? spaceIndex : versionVendorInfoString.length();
+      versionString = versionVendorInfoString.substring(0, end);
+    }
+
+    String[] parts = versionString.split("\\.");
+    if (parts.length >= 2) {
+      int major = PApplet.parseInt(parts[0], 0);
+      int minor = PApplet.parseInt(parts[1], 0);
+      return major * 100 + minor;
     }
     return 0;
   }
@@ -1837,11 +1892,81 @@ public class PLWJGL extends PGL {
 
   @Override
   protected String getGLSLVersionSuffix() {
-    // TODO implement... LWJGL creates an ES context by default?
+    String versionVendorInfoString = glGetString(SHADING_LANGUAGE_VERSION);
+    if (versionVendorInfoString == null) {
+      return null;
+    }
+
+    String es2prefix = "OpenGL ES GLSL ES ";
+    if (versionVendorInfoString.startsWith(es2prefix)) {
+      return " es";
+    }
     return "";
-  }    
-  
-  
+  }
+
+  @Override
+  protected String[] loadVertexShader(String filename) {
+    return loadVertexShader(filename, getGLSLVersion(), getGLSLVersionSuffix());
+  }
+
+
+  @Override
+  protected String[] loadFragmentShader(String filename) {
+    return loadFragmentShader(filename, getGLSLVersion(), getGLSLVersionSuffix());
+  }
+
+
+  @Override
+  protected String[] loadVertexShader(URL url) {
+    return loadVertexShader(url, getGLSLVersion(), getGLSLVersionSuffix());
+  }
+
+
+  @Override
+  protected String[] loadFragmentShader(URL url) {
+    return loadFragmentShader(url, getGLSLVersion(), getGLSLVersionSuffix());
+  }
+
+
+  @Override
+  protected String[] loadFragmentShader(String filename, int version, String versionSuffix) {
+    String[] fragSrc0 = sketch.loadStrings(filename);
+    return preprocessFragmentSource(fragSrc0, version, versionSuffix);
+  }
+
+
+  @Override
+  protected String[] loadVertexShader(String filename, int version, String versionSuffix) {
+    String[] vertSrc0 = sketch.loadStrings(filename);
+    return preprocessVertexSource(vertSrc0, version, versionSuffix);
+  }
+
+
+  @Override
+  protected String[] loadFragmentShader(URL url, int version, String versionSuffix) {
+    try {
+      String[] fragSrc0 = PApplet.loadStrings(url.openStream());
+      return preprocessFragmentSource(fragSrc0, version, versionSuffix);
+    } catch (IOException e) {
+      PGraphics.showException("Cannot load fragment shader " + url.getFile());
+    }
+    return null;
+  }
+
+
+  @Override
+  protected String[] loadVertexShader(URL url, int version, String versionSuffix) {
+    try {
+      String[] vertSrc0 = PApplet.loadStrings(url.openStream());
+      return preprocessVertexSource(vertSrc0, version, versionSuffix);
+    } catch (IOException e) {
+      PGraphics.showException("Cannot load vertex shader " + url.getFile());
+    }
+    return null;
+  }
+
+
+
   private void initFBOLayerES() {
     IntBuffer buf = allocateDirectIntBuffer(fboWidth * fboHeight);
 
@@ -1891,48 +2016,6 @@ public class PLWJGL extends PGL {
                     COLOR_BUFFER_BIT, NEAREST);
 
     bindFramebufferImpl(FRAMEBUFFER, 0);
-  }  
-
-  
-  @Override
-  public long fenceSync(int condition, int flags) {
-    return GL32.glFenceSync(condition, flags);
   }
 
-
-  @Override
-  public void deleteSync(long sync) {
-    GL32.glDeleteSync(sync);
-  }
-
-
-  @Override
-  public int clientWaitSync(long sync, int flags, long timeout) {
-    return GL32.glClientWaitSync(sync, flags, timeout);
-  }
-
-
-  @Override
-  protected void viewportImpl(int x, int y, int w, int h) {
-    GL11.glViewport(x, y, w, h);
-  }
-
-
-  @Override
-  protected void readPixelsImpl(int x, int y, int width, int height, int format,
-                                int type, long offset) {
-    GL11.glReadPixels(x, y, width, height, format, type, 0);
-
-  }
-
-  @Override
-  public void drawArraysImpl(int mode, int first, int count) {
-    GL11.glDrawArrays(mode, first, count);
-  }
-
-
-  @Override
-  public void drawElementsImpl(int mode, int count, int type, int offset) {
-    GL11.glDrawElements(mode, count, type, offset);
-  }
 }
