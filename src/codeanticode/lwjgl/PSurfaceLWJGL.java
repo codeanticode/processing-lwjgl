@@ -190,7 +190,7 @@ public class PSurfaceLWJGL implements PSurface {
 
   @Override
   public void setTitle(String title) {
-    GLFW.glfwSetWindowTitle(window, title);
+    glfwSetWindowTitle(window, title);
   }
 
 
@@ -332,6 +332,7 @@ public class PSurfaceLWJGL implements PSurface {
     glfwDefaultWindowHints();
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 
