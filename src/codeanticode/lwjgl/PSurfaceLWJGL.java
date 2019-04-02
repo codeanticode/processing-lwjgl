@@ -1377,7 +1377,15 @@ public class PSurfaceLWJGL implements PSurface {
       }
 
       // schedule next frame, drop frame(s) if already too late for next frame
-      nextFrame = Math.max(nextFrame + (long) (NANOS_IN_SECOND / (double) fps), getTime());
+
+      // Time might overflow, so always compare difference against zero instead
+      // of two times against each other:
+      // use `t1 - t0 > 0` instead of `t1 > t0`
+      // use `t0 + max(0, t1 - t0)` instead of `max(t0, t1)`
+      nextFrame = nextFrame + (long) (NANOS_IN_SECOND / (double) fps);
+      long now = getTime();
+      long remaining = nextFrame - now;
+      nextFrame = now + Math.max(0, remaining);
     }
 
     /**
@@ -1417,7 +1425,21 @@ public class PSurfaceLWJGL implements PSurface {
      * @return will return the current time in nano's
      */
     private static long getTime() {
-      return (glfwGetTimerValue() * NANOS_IN_SECOND) / glfwGetTimerFrequency();
+
+      long value = glfwGetTimerValue();
+      long freq = glfwGetTimerFrequency();
+
+      // This should return: `time = (value * NANOS_IN_SECOND) / freq`
+      // However, the multiplication overflows when `value > ~9.2e6`
+      // (which can happen in an hour) and the division returns a wrong result.
+
+      // Let the time overflow safely so that the difference between
+      // two returned times is always valid. Assumes that:
+      // value <= Long.MAX_VALUE (should be good for 290 years with period 1 ns)
+      // freq * NANOS_IN_SECOND <= Long.MAX_VALUE (freq <= ~9e9 or period >= ~0.11 ns).
+      long seconds = value / freq;
+      long remainder = value % freq;
+      return seconds * NANOS_IN_SECOND + (remainder * NANOS_IN_SECOND) / freq;
     }
 
     private static class RunningAvg {
