@@ -538,14 +538,6 @@ public class PSurfaceLWJGL implements PSurface {
   private int pressedMouseButton;
   private int modifiers;
 
-  // MACOSX: CTRL + Left Mouse is converted to Right Mouse. This boolean keeps
-  // track of whether the conversion happened on PRESS, because we should report
-  // the same button during DRAG and on RELEASE, even though CTRL might have
-  // been released already. Otherwise the events are inconsistent, e.g.
-  // Left Pressed - Left Drag - CTRL Pressed - Right Drag - Right Released.
-  // See: https://github.com/processing/processing/issues/5672
-  private boolean macosxLeftButtonWithCtrlPressed;
-
   // Detecting mouse clicks - PRESS and RELEASE events must not be farther
   // away from each other than the limit, measured separately in X and in Y.
   // This is what AWT does, however PRESS and RELEASE does not have to be on
@@ -693,20 +685,6 @@ public class PSurfaceLWJGL implements PSurface {
       .create((window1, button, action, mods) -> {
         modifiers = convertModifierBits(mods);
         button = convertMouseButton(button);
-
-        // If running on Mac OS, allow ctrl-click as right mouse.
-        // Verified to be necessary with Java 8u45.
-        if (PApplet.platform == PConstants.MACOSX && button == PConstants.LEFT) {
-          if (action == MouseEvent.PRESS && (modifiers & Event.CTRL) != 0) {
-            macosxLeftButtonWithCtrlPressed = true;
-          }
-          if (macosxLeftButtonWithCtrlPressed) {
-            button = PConstants.RIGHT;
-          }
-          if (action == GLFW_RELEASE) {
-            macosxLeftButtonWithCtrlPressed = false;
-          }
-        }
 
         long nowMs = System.currentTimeMillis();
         switch (action) {
