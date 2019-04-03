@@ -190,7 +190,7 @@ public class PSurfaceLWJGL implements PSurface {
 
   @Override
   public void setTitle(String title) {
-    GLFW.glfwSetWindowTitle(window, title);
+    glfwSetWindowTitle(window, title);
   }
 
 
@@ -332,6 +332,7 @@ public class PSurfaceLWJGL implements PSurface {
     glfwDefaultWindowHints();
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 
@@ -537,14 +538,6 @@ public class PSurfaceLWJGL implements PSurface {
   private int pressedMouseButton;
   private int modifiers;
 
-  // MACOSX: CTRL + Left Mouse is converted to Right Mouse. This boolean keeps
-  // track of whether the conversion happened on PRESS, because we should report
-  // the same button during DRAG and on RELEASE, even though CTRL might have
-  // been released already. Otherwise the events are inconsistent, e.g.
-  // Left Pressed - Left Drag - CTRL Pressed - Right Drag - Right Released.
-  // See: https://github.com/processing/processing/issues/5672
-  private boolean macosxLeftButtonWithCtrlPressed;
-
   // Detecting mouse clicks - PRESS and RELEASE events must not be farther
   // away from each other than the limit, measured separately in X and in Y.
   // This is what AWT does, however PRESS and RELEASE does not have to be on
@@ -692,20 +685,6 @@ public class PSurfaceLWJGL implements PSurface {
       .create((window1, button, action, mods) -> {
         modifiers = convertModifierBits(mods);
         button = convertMouseButton(button);
-
-        // If running on Mac OS, allow ctrl-click as right mouse.
-        // Verified to be necessary with Java 8u45.
-        if (PApplet.platform == PConstants.MACOSX && button == PConstants.LEFT) {
-          if (action == MouseEvent.PRESS && (modifiers & Event.CTRL) != 0) {
-            macosxLeftButtonWithCtrlPressed = true;
-          }
-          if (macosxLeftButtonWithCtrlPressed) {
-            button = PConstants.RIGHT;
-          }
-          if (action == GLFW_RELEASE) {
-            macosxLeftButtonWithCtrlPressed = false;
-          }
-        }
 
         long nowMs = System.currentTimeMillis();
         switch (action) {
@@ -1398,7 +1377,15 @@ public class PSurfaceLWJGL implements PSurface {
       }
 
       // schedule next frame, drop frame(s) if already too late for next frame
-      nextFrame = Math.max(nextFrame + (long) (NANOS_IN_SECOND / (double) fps), getTime());
+
+      // Time might overflow, so always compare difference against zero instead
+      // of two times against each other:
+      // use `t1 - t0 > 0` instead of `t1 > t0`
+      // use `t0 + max(0, t1 - t0)` instead of `max(t0, t1)`
+      nextFrame = nextFrame + (long) (NANOS_IN_SECOND / (double) fps);
+      long now = getTime();
+      long remaining = nextFrame - now;
+      nextFrame = now + Math.max(0, remaining);
     }
 
     /**
@@ -1438,7 +1425,21 @@ public class PSurfaceLWJGL implements PSurface {
      * @return will return the current time in nano's
      */
     private static long getTime() {
-      return (glfwGetTimerValue() * NANOS_IN_SECOND) / glfwGetTimerFrequency();
+
+      long value = glfwGetTimerValue();
+      long freq = glfwGetTimerFrequency();
+
+      // This should return: `time = (value * NANOS_IN_SECOND) / freq`
+      // However, the multiplication overflows when `value > ~9.2e6`
+      // (which can happen in an hour) and the division returns a wrong result.
+
+      // Let the time overflow safely so that the difference between
+      // two returned times is always valid. Assumes that:
+      // value <= Long.MAX_VALUE (should be good for 290 years with period 1 ns)
+      // freq * NANOS_IN_SECOND <= Long.MAX_VALUE (freq <= ~9e9 or period >= ~0.11 ns).
+      long seconds = value / freq;
+      long remainder = value % freq;
+      return seconds * NANOS_IN_SECOND + (remainder * NANOS_IN_SECOND) / freq;
     }
 
     private static class RunningAvg {
