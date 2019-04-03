@@ -19,7 +19,7 @@ import processing.core.*;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 
-public class LWJGLTest extends PApplet {
+public class HelloLWJGL extends PApplet {
   
   // The window handle
   private long window;
@@ -152,6 +152,6 @@ public class LWJGLTest extends PApplet {
 //        }
 //      }
       
-      new LWJGLTest().run();      
+      new HelloLWJGL().run();      
   }    
 }
