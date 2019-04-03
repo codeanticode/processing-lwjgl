@@ -1,10 +1,5 @@
 package test;
 
-import org.lwjgl.*;
-import org.lwjgl.glfw.*;
-import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
-
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.glClear;
@@ -12,13 +7,7 @@ import static org.lwjgl.opengl.GL11.glClearColor;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
-import java.awt.Frame;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
-import java.awt.HeadlessException;
-import java.awt.Toolkit;
 import java.nio.IntBuffer;
-import java.lang.reflect.Method;
 
 import org.lwjgl.Version;
 import org.lwjgl.glfw.GLFWErrorCallback;
@@ -26,46 +15,11 @@ import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
-import codeanticode.lwjgl.PLWJGL;
 import processing.core.*;
-import processing.opengl.*;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.system.MemoryStack.*;
-import static org.lwjgl.system.MemoryUtil.*;
 
-public class Main extends PApplet {
-  PShader blur;
-  
-  public void settings() {
-//    size(600, 400, PLWJGL.P2D);
-    size(600, 400, PLWJGL.P3D);
-//    fullScreen(PLWJGL.P3D);
-  }
-  
-  public void setup() {
-//    blur = loadShader("blur.glsl"); 
-//    stroke(255, 0, 0);
-//    rectMode(CENTER);
-  }
- 
-  public void draw() {
-    background(255);
-    
-    lights();
-//    ellipse(mouseX, mouseY, 50, 50);
-    
-    translate(mouseX, mouseY);
-    rotateX(frameCount * 0.01f);
-    rotateY(frameCount * 0.01f);
-    box(50);
-    
-    
-//    filter(blur);  
-//    rect(mouseX, mouseY, 150, 150); 
-//    ellipse(mouseX, mouseY, 100, 100);
-  }
+public class LWJGLTest extends PApplet {
   
   // The window handle
   private long window;
@@ -100,7 +54,7 @@ public class Main extends PApplet {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
 
     // Create the window
-    window = glfwCreateWindow(300, 300, "Hello World!", NULL, NULL);
+    window = glfwCreateWindow(300, 300, "Hello LWJGL " + Version.getVersion() + "!", NULL, NULL);
     if ( window == NULL )
       throw new RuntimeException("Failed to create the GLFW window");
 
@@ -166,12 +120,8 @@ public class Main extends PApplet {
     }
   }  
   
-  static boolean TEST_SKETCH = true;
   public static void main(final String[] args) {
     
-    if (TEST_SKETCH) {
-      PApplet.main("test.Main");   
-    } else {
       // All the following things break GLFW (in particular, mouse movement events are not detected unless pressing the mouse):
       
       // 1) calling getDefaultToolkit()
@@ -202,7 +152,6 @@ public class Main extends PApplet {
 //        }
 //      }
       
-      new Main().run();      
-    }
+      new LWJGLTest().run();      
   }    
 }
