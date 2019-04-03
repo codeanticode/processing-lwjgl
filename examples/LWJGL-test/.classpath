@@ -3,12 +3,12 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/processing-core"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl-glfw.jar"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl-opengl.jar"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/processing-lwjgl"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl-glfw-natives-macos.jar"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl-natives-macos.jar"/>
-	<classpathentry kind="lib" path="/Users/andres/code/processing/git/processing-lwjgl/lib/lwjgl-opengl-natives-macos.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl-glfw-natives-macos.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl-glfw.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl-natives-macos.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl-opengl-natives-macos.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl-opengl.jar"/>
+	<classpathentry kind="lib" path="/processing-lwjgl/lib/lwjgl.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
